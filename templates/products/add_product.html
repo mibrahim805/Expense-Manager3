@@ -2,7 +2,7 @@
 
 {% block content %}
 
-<h2 class="mb-4">Add Product</h2>
+<h2 class="mb-4">{% if form.instance.pk %}Update Product{% else %}Add Product{% endif %}</h2>
 
 {% if messages %}
     {% for message in messages %}
@@ -39,8 +39,16 @@
         {% endif %}
     </div>
 
-    <button type="submit" class="btn btn-success">Add Product</button>
-    <a href="{% url 'expenses:expense_list' %}" class="btn btn-secondary">Cancel</a>
+    <div class="mb-3">
+        <label>{{ form.stock.label_tag }}</label>
+        {{ form.stock }}
+        {% if form.stock.errors %}
+            <div class="text-danger small">{{ form.stock.errors }}</div>
+        {% endif %}
+    </div>
+
+    <button type="submit" class="btn btn-success">{% if form.instance.pk %}Update{% else %}Add{% endif %} Product</button>
+    <a href="{% url 'expenses:product_list' %}" class="btn btn-secondary">Cancel</a>
 </form>
 
 {% endblock %}
