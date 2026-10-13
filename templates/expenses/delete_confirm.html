@@ -1,14 +1,13 @@
-{% extends 'base.html' %}
-{% block content %}
+{% extends "base.html" %}
 
-<h3>Confirm Delete</h3>
+{% block content %}
+<h2>Delete Expense</h2>
 <p>Are you sure you want to delete this expense?</p>
-<p><strong>{{ expense.date }} | {{ expense.category }} | Rs. {{ expense.amount }}</strong></p>
+<p><strong>{{ expense.get_category_display }} — Rs. {{ expense.amount }} on {{ expense.date }}</strong></p>
 
 <form method="post">
     {% csrf_token %}
     <button type="submit" class="btn btn-danger">Yes, Delete</button>
     <a href="{% url 'expenses:expense_list' %}" class="btn btn-secondary">Cancel</a>
 </form>
-
 {% endblock %}

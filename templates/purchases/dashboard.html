@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Dashboard</h1>
+
+<p>Total Products: {{ total_products }}</p>
+<p>Total Purchases: {{ total_purchases }}</p>
+<p>Total Sales: {{ total_sales }}</p>
+<p>Total Stock: {{ total_stock }}</p>
+
+<h2>Product Report</h2>
+
+<table border="1">
+<tr>
+<th>Product</th>
+<th>Purchased</th>
+<th>Sold</th>
+<th>Remaining</th>
+</tr>
+
+{% for product in products %}
+<tr>
+<td>{{ product.name }}</td>
+<td>{{ product.purchased }}</td>
+<td>{{ product.sold }}</td>
+<td>{{ product.remaining }}</td>
+</tr>
+{% endfor %}
+</table>
+{% endblock %}

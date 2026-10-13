@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Expense Dashboard</h2>
+    <a href="{% url 'expenses:add_expense' %}" class="btn btn-primary">Add Expense</a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="text-muted">Total Expenses</div>
+                <h3>Rs. {{ total_expenses }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="text-muted">Number of Expenses</div>
+                <h3>{{ expense_count }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <h4>Spending by Category</h4>
+        <table class="table table-striped">
+            <thead>
+                <tr><th>Category</th><th>Count</th><th>Total</th></tr>
+            </thead>
+            <tbody>
+                {% for item in category_totals %}
+                <tr>
+                    <td>{{ item.category|title }}</td>
+                    <td>{{ item.count }}</td>
+                    <td>Rs. {{ item.total }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="3">No expenses recorded yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="col-lg-6">
+        <h4>Recent Expenses</h4>
+        <table class="table table-striped">
+            <thead>
+                <tr><th>Date</th><th>Category</th><th>Amount</th></tr>
+            </thead>
+            <tbody>
+                {% for expense in recent_expenses %}
+                <tr>
+                    <td>{{ expense.date }}</td>
+                    <td>{{ expense.get_category_display }}</td>
+                    <td>Rs. {{ expense.amount }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="3">No expenses recorded yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
