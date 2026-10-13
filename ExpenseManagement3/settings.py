@@ -127,7 +127,7 @@ STATIC_URL = 'static/'
 
 
 LOGIN_URL = "/login/"
-LOGIN_REDIRECT_URL = "/expenses/list/"
+LOGIN_REDIRECT_URL = "/expenses/dashboard/"
 
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
@@ -135,9 +135,8 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 
-ACCOUNT_AUTHENTICATION_METHOD = 'username_email'
-ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_USERNAME_REQUIRED = True
+ACCOUNT_LOGIN_METHODS = {'username', 'email'}
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*', 'password2*']
 ACCOUNT_EMAIL_VERIFICATION = 'none'
 SOCIALACCOUNT_AUTO_SIGNUP = True
 
