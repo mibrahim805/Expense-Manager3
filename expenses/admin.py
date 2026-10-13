@@ -1,16 +1,11 @@
 from django.contrib import admin
 
-# Register your models here.
-
-
-from expenses.models import Expense, Product
+from .models import Expense
 
 
 @admin.register(Expense)
 class ExpenseAdmin(admin.ModelAdmin):
-    list_display = ["id", "product", "quantity", "user", "date", "total_amount", "created_at"]
-
-
-@admin.register(Product)
-class ProductAdmin(admin.ModelAdmin):
-    list_display = ["id", "name", "description", "default_price", "price"]
+    list_display = ["id", "user", "category", "amount", "date", "created_at"]
+    list_filter = ["category", "date"]
+    search_fields = ["user__username", "category", "description"]
+    date_hierarchy = "date"
