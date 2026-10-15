@@ -409,7 +409,12 @@ private fun WeeklySpendingCard(
                                 .fillMaxSize()
                                 .clickable { }
                                 .semantics {
-                                    contentDescription = "${day.date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())}: ${formatMoney(day.amountMinor)}"
+                                    val amountDescription = if (amountsVisible) {
+                                        formatMoney(day.amountMinor)
+                                    } else {
+                                        "Amount hidden"
+                                    }
+                                    contentDescription = "${day.date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())}: $amountDescription"
                                 },
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Bottom,
@@ -466,6 +471,11 @@ private fun TransactionRow(transaction: FinanceTransaction, colors: FinanceTheme
     } else {
         "${transaction.category.label} · ${transaction.account.name}"
     }
+    val amountDescription = if (amountsVisible) {
+        formatMoney(signedAmount, withSign = true)
+    } else {
+        "Amount hidden"
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -473,7 +483,7 @@ private fun TransactionRow(transaction: FinanceTransaction, colors: FinanceTheme
             .background(colors.surface.copy(alpha = 0.72f))
             .padding(horizontal = 10.dp, vertical = 9.dp)
             .semantics {
-                contentDescription = "$title, $subtitle, $dateText, ${formatMoney(signedAmount, withSign = true)}"
+                contentDescription = "$title, $subtitle, $dateText, $amountDescription"
             },
         verticalAlignment = Alignment.CenterVertically,
     ) {
