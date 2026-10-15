@@ -8,3 +8,6 @@ __pycache__/
 db.sqlite3
 .idea/
 FETCH_HEAD
+.env
+.env.*
+!.env.example

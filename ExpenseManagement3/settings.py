@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -27,8 +28,12 @@ SECRET_KEY = os.environ.get(
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get("DJANGO_DEBUG", "True").lower() == "true"
-if not DEBUG and "DJANGO_SECRET_KEY" not in os.environ:
+if not DEBUG and not os.environ.get("DJANGO_SECRET_KEY"):
     raise RuntimeError("Set DJANGO_SECRET_KEY when running with DJANGO_DEBUG=False.")
+if not DEBUG and not os.environ.get("DATABASE_URL"):
+    raise RuntimeError("Set DATABASE_URL to a persistent production database when running with DJANGO_DEBUG=False.")
+if not DEBUG and not os.environ.get("DJANGO_ALLOWED_HOSTS"):
+    raise RuntimeError("Set DJANGO_ALLOWED_HOSTS to the deployed hostname when running with DJANGO_DEBUG=False.")
 
 ALLOWED_HOSTS = [host.strip() for host in os.environ.get(
     "DJANGO_ALLOWED_HOSTS",
@@ -58,6 +63,7 @@ SITE_ID = 1
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -91,10 +97,11 @@ WSGI_APPLICATION = 'ExpenseManagement3.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        conn_max_age=600,
+        ssl_require=not DEBUG,
+    )
 }
 
 
@@ -132,7 +139,24 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STORAGES = {
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage'},
+}
+
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',')
+    if origin.strip()
+]
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = int(os.environ.get('DJANGO_SECURE_HSTS_SECONDS', '86400'))
 
 EMAIL_BACKEND = os.environ.get(
     "DJANGO_EMAIL_BACKEND",
@@ -166,16 +190,16 @@ SOCIALACCOUNT_PROVIDERS = {
         'SCOPE': ['profile', 'email'],
         'AUTH_PARAMS': {'access_type': 'online'},
         'APP': {
-            'client_id': '509146912160-ke13vdaiohjgpop1g1rud62bahbvinfd.apps.googleusercontent.com',
-            'secret': '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',
+            'client_id': os.environ.get('GOOGLE_OAUTH_CLIENT_ID', ''),
+            'secret': os.environ.get('GOOGLE_OAUTH_CLIENT_SECRET', ''),
             'key': ''
         }
     },
 'github': {
         'SCOPE': ['user', 'user:email'],
         'APP': {
-            'client_id': 'Ov23li3fwwAQ6bLG1Rf9',
-            'secret': '963e8ceb5d2300a9bac801c37909c60fb34f7276',
+            'client_id': os.environ.get('GITHUB_OAUTH_CLIENT_ID', ''),
+            'secret': os.environ.get('GITHUB_OAUTH_CLIENT_SECRET', ''),
             'key': ''
         }
     }

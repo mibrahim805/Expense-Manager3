@@ -1,0 +1,15 @@
+.git
+.idea
+.venv
+.gradle
+.gradle-cache
+.kotlin
+.tools
+androidApp
+build
+**/__pycache__
+**/*.py[cod]
+db.sqlite3
+local.properties
+*.apk
+*.aab
