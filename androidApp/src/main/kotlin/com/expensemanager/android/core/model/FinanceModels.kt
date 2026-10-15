@@ -1,5 +1,7 @@
 package com.expensemanager.android.core.model
 
+import java.util.UUID
+
 enum class TransactionType {
     EXPENSE,
     INCOME,
@@ -63,4 +65,5 @@ data class TransactionDraft(
     val account: Account,
     val destinationAccount: Account? = null,
     val timestampMillis: Long,
+    val requestId: String = UUID.randomUUID().toString(),
 )

@@ -6,7 +6,7 @@ import androidx.room.migration.Migration
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [TransactionEntity::class], version = 2, exportSchema = false)
+@Database(entities = [TransactionEntity::class], version = 3, exportSchema = false)
 abstract class FinanceDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao
 
@@ -20,14 +20,23 @@ abstract class FinanceDatabase : RoomDatabase() {
                     context.applicationContext,
                     FinanceDatabase::class.java,
                     "finance.db",
-                ).addMigrations(MIGRATION_1_2).build().also { instance = it }
+                ).addMigrations(*migrations).build().also { instance = it }
             }
 
-        private val MIGRATION_1_2 = object : Migration(1, 2) {
+        val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE transactions ADD COLUMN destinationAccountId TEXT")
                 db.execSQL("ALTER TABLE transactions ADD COLUMN destinationAccountName TEXT")
             }
         }
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transactions ADD COLUMN requestId TEXT")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_transactions_requestId ON transactions(requestId)")
+            }
+        }
+
+        val migrations: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
     }
 }

@@ -5,7 +5,11 @@ import androidx.room.PrimaryKey
 
 @Entity(
     tableName = "transactions",
-    indices = [androidx.room.Index(value = ["timestampMillis"]), androidx.room.Index(value = ["type"])]
+    indices = [
+        androidx.room.Index(value = ["timestampMillis"]),
+        androidx.room.Index(value = ["type"]),
+        androidx.room.Index(value = ["requestId"], unique = true),
+    ]
 )
 data class TransactionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -19,4 +23,5 @@ data class TransactionEntity(
     val destinationAccountId: String? = null,
     val destinationAccountName: String? = null,
     val timestampMillis: Long,
+    val requestId: String? = null,
 )
