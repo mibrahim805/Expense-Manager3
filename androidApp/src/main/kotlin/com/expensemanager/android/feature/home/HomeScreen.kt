@@ -232,57 +232,51 @@ private fun BalanceCard(
                 .background(Brush.linearGradient(listOf(colors.balanceStart, colors.balanceEnd)))
                 .padding(16.dp),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Total Balance", color = colors.secondaryText, style = MaterialTheme.typography.bodyMedium)
-                        IconButton(
-                            onClick = onToggleVisibility,
-                            modifier = Modifier.size(36.dp).semantics {
-                                contentDescription = if (amountsVisible) "Hide balances" else "Show balances"
-                            },
-                        ) {
-                            Icon(
-                                imageVector = if (amountsVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                contentDescription = null,
-                                tint = colors.secondaryText,
-                                modifier = Modifier.size(17.dp),
-                            )
-                        }
-                    }
-                    Text(
-                        text = if (amountsVisible) formatMoney(balance, withSign = balance < 0) else maskedAmount(),
-                        color = colors.primaryText,
-                        style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (growthPercent != null) {
-                        val positive = growthPercent >= 0
-                        Row(
-                            modifier = Modifier.padding(top = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            Text(
-                                text = if (positive) "↑ ${growthPercent}%" else "↓ ${-growthPercent}%",
-                                color = if (positive) colors.primary else colors.expense,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Text("vs last month", color = colors.secondaryText, style = MaterialTheme.typography.labelMedium)
-                        }
+            BalanceDecoration(
+                colors = colors,
+                modifier = Modifier.fillMaxSize(),
+            )
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Total Balance", color = colors.secondaryText, style = MaterialTheme.typography.bodyMedium)
+                    IconButton(
+                        onClick = onToggleVisibility,
+                        modifier = Modifier.size(36.dp).semantics {
+                            contentDescription = if (amountsVisible) "Hide balances" else "Show balances"
+                        },
+                    ) {
+                        Icon(
+                            imageVector = if (amountsVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = null,
+                            tint = colors.secondaryText,
+                            modifier = Modifier.size(17.dp),
+                        )
                     }
                 }
-                BalanceDecoration(
-                    colors = colors,
-                    modifier = Modifier.size(width = 116.dp, height = 92.dp),
+                Text(
+                    text = if (amountsVisible) formatMoney(balance, withSign = balance < 0) else maskedAmount(),
+                    color = colors.primaryText,
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
+                if (growthPercent != null) {
+                    val positive = growthPercent >= 0
+                    Row(
+                        modifier = Modifier.padding(top = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = if (positive) "↑ ${growthPercent}%" else "↓ ${-growthPercent}%",
+                            color = if (positive) colors.primary else colors.expense,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text("vs last month", color = colors.secondaryText, style = MaterialTheme.typography.labelMedium)
+                    }
+                }
             }
         }
     }
@@ -293,21 +287,24 @@ private fun BalanceDecoration(colors: FinanceThemeColors, modifier: Modifier = M
     androidx.compose.foundation.Canvas(
         modifier = modifier.semantics { contentDescription = "Decorative balance trend accent" },
     ) {
-        val barWidth = size.width * 0.07f
-        val barGap = size.width * 0.08f
-        val base = size.height * 0.78f
+        val barWidth = size.width * 0.035f
+        val barGap = size.width * 0.025f
+        val chartWidth = barWidth * 3f + barGap * 2f
+        val startX = size.width - chartWidth - size.width * 0.04f
+        val base = size.height * 0.82f
+        val accent = colors.primary.copy(alpha = 0.28f)
         listOf(0.35f, 0.54f, 0.77f).forEachIndexed { index, fraction ->
             drawRoundRect(
-                color = colors.primary.copy(alpha = 0.9f),
-                topLeft = androidx.compose.ui.geometry.Offset(index * (barWidth + barGap), base - size.height * fraction),
+                color = accent,
+                topLeft = androidx.compose.ui.geometry.Offset(startX + index * (barWidth + barGap), base - size.height * fraction),
                 size = androidx.compose.ui.geometry.Size(barWidth, size.height * fraction),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(barWidth, barWidth),
             )
         }
         drawLine(
-            color = colors.primary.copy(alpha = 0.62f),
-            start = androidx.compose.ui.geometry.Offset(size.width * 0.27f, size.height * 0.87f),
-            end = androidx.compose.ui.geometry.Offset(size.width, size.height * 0.18f),
+            color = colors.primary.copy(alpha = 0.22f),
+            start = androidx.compose.ui.geometry.Offset(startX - size.width * 0.08f, size.height * 0.88f),
+            end = androidx.compose.ui.geometry.Offset(size.width * 0.97f, size.height * 0.2f),
             strokeWidth = 2.dp.toPx(),
             cap = StrokeCap.Round,
         )
