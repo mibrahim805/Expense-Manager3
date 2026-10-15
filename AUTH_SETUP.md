@@ -18,7 +18,11 @@ adb reverse tcp:8000 tcp:8000
 ./gradlew :androidApp:installDebug -PrupeyawiseApiBaseUrl=http://127.0.0.1:8000/
 ```
 
-## Kubeletto + Neon deployment
+## AWS ECS Express Mode + Neon
+
+For the AWS deployment path, follow [the ECS Express Mode guide](aws/ecs-express/README.md). It builds this repository's Docker image into ECR, serves it through ECS Express Mode, and uses Neon as the database.
+
+## Kubeletto + Neon alternative
 
 The repository now includes a Dockerfile for the Django service. Kubeletto's free service scales to zero, so keep all durable account data in Neon Postgres; do not use a container-local SQLite file in production.
 
