@@ -60,9 +60,14 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.expensemanager.android.core.model.FinanceCategory
 import com.expensemanager.android.core.model.FinanceTransaction
 import com.expensemanager.android.core.model.TransactionType
@@ -254,7 +259,7 @@ private fun BalanceCard(
                     }
                 }
                 Text(
-                    text = if (amountsVisible) formatMoney(balance, withSign = balance < 0) else maskedAmount(),
+                    text = if (amountsVisible) balanceAmountText(balance) else AnnotatedString(maskedAmount()),
                     color = colors.primaryText,
                     style = MaterialTheme.typography.displaySmall,
                     fontWeight = FontWeight.Bold,
@@ -568,6 +573,17 @@ private fun monthlyNet(transactions: List<FinanceTransaction>, month: YearMonth)
         }
 
 private fun maskedAmount(): String = "Rs •••,•••"
+
+private fun balanceAmountText(balance: Long): AnnotatedString = buildAnnotatedString {
+    val formattedAmount = formatMoney(balance)
+    if (balance < 0) {
+        append("Rs ")
+        withStyle(SpanStyle(fontSize = 26.sp)) { append("−") }
+        append(formattedAmount.removePrefix("Rs "))
+    } else {
+        append(formattedAmount)
+    }
+}
 
 private fun FinanceTransaction.localDateTime() =
     Instant.ofEpochMilli(timestampMillis).atZone(ZoneId.systemDefault()).toLocalDateTime()
