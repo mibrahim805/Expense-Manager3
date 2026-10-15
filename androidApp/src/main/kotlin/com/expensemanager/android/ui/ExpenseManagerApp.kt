@@ -38,6 +38,7 @@ import com.expensemanager.android.core.designsystem.FinanceThemeMode
 import com.expensemanager.android.core.presentation.FinanceEvent
 import com.expensemanager.android.core.presentation.FinanceViewModel
 import com.expensemanager.android.feature.home.HomeScreen
+import com.expensemanager.android.feature.insights.InsightsScreen
 import com.expensemanager.android.feature.activity.ActivityScreen
 import com.expensemanager.android.feature.budgets.BudgetsScreen
 import com.expensemanager.android.feature.transactions.AddTransactionScreen
@@ -198,7 +199,7 @@ fun ExpenseManagerApp(
                     onDeleteBudget = viewModel::deleteBudget,
                 )
             }
-            composable("insights") { PlaceholderScreen("Insights", "Financial insights are coming next.") }
+            composable("insights") { InsightsScreen(transactions) }
         }
     }
 }
