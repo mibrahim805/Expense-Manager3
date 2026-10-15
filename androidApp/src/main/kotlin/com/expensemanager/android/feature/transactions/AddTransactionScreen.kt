@@ -51,14 +51,17 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.expensemanager.android.core.designsystem.FinanceColors
+import com.expensemanager.android.core.designsystem.financeColors
 import com.expensemanager.android.core.model.Account
 import com.expensemanager.android.core.model.FinanceCategory
 import com.expensemanager.android.core.model.TransactionDraft
 import com.expensemanager.android.core.model.TransactionType
 import com.expensemanager.android.core.model.parseAmountToMinorUnits
+import com.expensemanager.android.core.model.formatAmountForInput
+import com.expensemanager.android.core.model.FinanceTransaction
 import java.text.DateFormat
 import java.util.Date
+import java.util.UUID
 
 @Composable
 @androidx.compose.material3.ExperimentalMaterial3Api
@@ -66,19 +69,22 @@ fun AddTransactionScreen(
     isSaving: Boolean,
     onBack: () -> Unit,
     onSave: (TransactionDraft) -> Unit,
+    existingTransaction: FinanceTransaction? = null,
 ) {
-    var typeName by rememberSaveable { mutableStateOf(TransactionType.EXPENSE.name) }
-    var amountText by rememberSaveable { mutableStateOf("") }
-    var description by rememberSaveable { mutableStateOf("") }
-    var categoryKey by rememberSaveable { mutableStateOf(FinanceCategory.FOOD.key) }
-    var timestampMillis by rememberSaveable { mutableLongStateOf(System.currentTimeMillis()) }
+    val colors = financeColors()
+    var typeName by rememberSaveable(existingTransaction?.id) { mutableStateOf(existingTransaction?.type?.name ?: TransactionType.EXPENSE.name) }
+    var amountText by rememberSaveable(existingTransaction?.id) { mutableStateOf(existingTransaction?.let { formatAmountForInput(it.amountMinor) }.orEmpty()) }
+    var description by rememberSaveable(existingTransaction?.id) { mutableStateOf(existingTransaction?.description.orEmpty()) }
+    var categoryKey by rememberSaveable(existingTransaction?.id) { mutableStateOf(existingTransaction?.category?.key ?: FinanceCategory.FOOD.key) }
+    var timestampMillis by rememberSaveable(existingTransaction?.id) { mutableLongStateOf(existingTransaction?.timestampMillis ?: System.currentTimeMillis()) }
     var attemptedSave by rememberSaveable { mutableStateOf(false) }
     var showAccountSheet by rememberSaveable { mutableStateOf(false) }
     var showAllCategories by rememberSaveable { mutableStateOf(false) }
     var selectingDestination by rememberSaveable { mutableStateOf(false) }
     var showDiscardDialog by rememberSaveable { mutableStateOf(false) }
-    var accountId by rememberSaveable { mutableStateOf("cash") }
-    var destinationAccountId by rememberSaveable { mutableStateOf("bank") }
+    var accountId by rememberSaveable(existingTransaction?.id) { mutableStateOf(existingTransaction?.account?.id ?: "cash") }
+    var destinationAccountId by rememberSaveable(existingTransaction?.id) { mutableStateOf(existingTransaction?.destinationAccount?.id ?: "bank") }
+    var requestId by rememberSaveable { mutableStateOf(UUID.randomUUID().toString()) }
     val selectedType = TransactionType.valueOf(typeName)
     val categories = FinanceCategory.forType(selectedType)
     val selectedCategory = categories.firstOrNull { it.key == categoryKey } ?: categories.first()
@@ -106,7 +112,7 @@ fun AddTransactionScreen(
             ) {
                 Icon(Icons.Default.Close, contentDescription = null)
             }
-            Text("Add transaction", style = MaterialTheme.typography.headlineSmall)
+            Text(if (existingTransaction == null) "Add transaction" else "Edit transaction", style = MaterialTheme.typography.headlineSmall)
         }
 
         Column(
@@ -131,13 +137,13 @@ fun AddTransactionScreen(
             }
 
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                Text("Enter amount", color = FinanceColors.SecondaryText, style = MaterialTheme.typography.bodyMedium)
+                Text("Enter amount", color = colors.secondaryText, style = MaterialTheme.typography.bodyMedium)
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { amountText = it.filter { char -> char.isDigit() || char == '.' || char == ',' } },
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                     textStyle = MaterialTheme.typography.displaySmall,
-                    placeholder = { Text("0.00", style = MaterialTheme.typography.displaySmall, color = FinanceColors.MutedText) },
+                    placeholder = { Text("0.00", style = MaterialTheme.typography.displaySmall, color = colors.mutedText) },
                     prefix = { Text("Rs ", style = MaterialTheme.typography.titleLarge) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -185,7 +191,7 @@ fun AddTransactionScreen(
                         showAccountSheet = true
                     }
                     if (!accountsAreValid && attemptedSave) {
-                        Text("Choose two different accounts.", color = FinanceColors.Negative, style = MaterialTheme.typography.bodyMedium)
+                        Text("Choose two different accounts.", color = colors.expense, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
@@ -249,11 +255,12 @@ fun AddTransactionScreen(
                             account = account,
                             destinationAccount = if (selectedType == TransactionType.TRANSFER) destinationAccount else null,
                             timestampMillis = timestampMillis,
+                            requestId = requestId,
                         )
                     )
                 }
             },
-            enabled = amountMinor != null && accountsAreValid && !isSaving,
+            enabled = !isSaving,
             modifier = Modifier.fillMaxWidth().height(56.dp).padding(bottom = 8.dp),
             shape = RoundedCornerShape(16.dp),
         ) {
@@ -264,7 +271,7 @@ fun AddTransactionScreen(
                     strokeWidth = 2.dp,
                 )
             } else {
-                Text("Save ${selectedType.label().lowercase()}")
+                Text(if (existingTransaction == null) "Save ${selectedType.label().lowercase()}" else "Save changes")
             }
         }
     }
@@ -320,6 +327,7 @@ private fun TransactionType.label(): String = when (this) {
 
 @Composable
 private fun AccountField(account: Account, onClick: () -> Unit) {
+    val colors = financeColors()
     OutlinedButton(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth().height(56.dp),
@@ -330,7 +338,7 @@ private fun AccountField(account: Account, onClick: () -> Unit) {
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
             Text(account.name)
-            Text(account.currencyCode, color = FinanceColors.MutedText, style = MaterialTheme.typography.labelMedium)
+            Text(account.currencyCode, color = colors.mutedText, style = MaterialTheme.typography.labelMedium)
         }
         Icon(Icons.Default.ExpandMore, contentDescription = "Choose account")
     }

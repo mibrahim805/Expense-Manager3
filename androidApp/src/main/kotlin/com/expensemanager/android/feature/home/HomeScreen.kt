@@ -1,10 +1,12 @@
 package com.expensemanager.android.feature.home
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,17 +23,23 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.LocalGasStation
 import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.ShoppingBag
-import androidx.compose.material.icons.filled.Work
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Work
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -40,147 +48,240 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.expensemanager.android.core.designsystem.FinanceColors
 import com.expensemanager.android.core.model.FinanceCategory
 import com.expensemanager.android.core.model.FinanceTransaction
 import com.expensemanager.android.core.model.TransactionType
+import com.expensemanager.android.core.model.calculateExpenses
+import com.expensemanager.android.core.model.calculateIncome
+import com.expensemanager.android.core.model.calculateTotalBalance
 import com.expensemanager.android.core.model.formatMoney
+import com.expensemanager.android.core.designsystem.FinanceThemeColors
+import com.expensemanager.android.core.designsystem.financeColors
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
 import java.util.Locale
-import kotlin.math.max
+import kotlin.math.roundToInt
 
 @Composable
 fun HomeScreen(
     transactions: List<FinanceTransaction>,
     onAddExpense: () -> Unit,
     onViewAll: () -> Unit,
+    onOpenInsights: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
-    val income = transactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amountMinor }
-    val expenses = transactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amountMinor }
-    val balance = income - expenses
+    val colors = financeColors()
+    var amountsVisible by rememberSaveable { mutableStateOf(true) }
+    val today = LocalDate.now()
+    val currentMonth = YearMonth.from(today)
+    val monthTransactions = transactions.filter { YearMonth.from(it.localDate()) == currentMonth }
+    val income = calculateIncome(monthTransactions)
+    val expenses = calculateExpenses(monthTransactions)
+    val balance = calculateTotalBalance(transactions)
+    val weeklySpending = weekSpending(transactions, today)
+    val recentTransactions = transactions.sortedByDescending { it.timestampMillis }.take(4)
+    val growth = monthlyGrowthPercent(transactions, currentMonth)
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.appBackground),
+        contentPadding = PaddingValues(start = 16.dp, top = 2.dp, end = 16.dp, bottom = 92.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        item { DashboardHeader(colors, onOpenSettings) }
         item {
-            GreetingHeader()
+            BalanceCard(
+                balance = balance,
+                colors = colors,
+                growthPercent = growth,
+                amountsVisible = amountsVisible,
+                onToggleVisibility = { amountsVisible = !amountsVisible },
+            )
         }
         item {
-            BalanceSummaryCard(balance = balance, income = income, expenses = expenses)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                MonthlyMetricCard(
+                    modifier = Modifier.weight(1f),
+                    label = "Income",
+                    amount = income,
+                    icon = Icons.Default.ArrowUpward,
+                    accent = colors.income,
+                    colors = colors,
+                    amountsVisible = amountsVisible,
+                )
+                MonthlyMetricCard(
+                    modifier = Modifier.weight(1f),
+                    label = "Expenses",
+                    amount = expenses,
+                    icon = Icons.Default.ArrowDownward,
+                    accent = colors.expense,
+                    colors = colors,
+                    amountsVisible = amountsVisible,
+                )
+            }
         }
         item {
-            SpendingOverviewCard(transactions = transactions)
+            WeeklySpendingCard(
+                spending = weeklySpending,
+                colors = colors,
+                amountsVisible = amountsVisible,
+                onOpenInsights = onOpenInsights,
+            )
         }
         item {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text("Recent activity", style = MaterialTheme.typography.titleLarge)
+                Text("Recent Transactions", color = colors.primaryText, style = MaterialTheme.typography.titleLarge)
                 Text(
-                    "View all",
-                    color = FinanceColors.PrimaryBlue,
+                    "See all",
+                    color = colors.primary,
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.clickable(onClick = onViewAll),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onViewAll)
+                        .padding(horizontal = 8.dp, vertical = 8.dp)
+                        .semantics { contentDescription = "See all transactions" },
                 )
             }
         }
-        if (transactions.isEmpty()) {
-            item { EmptyDashboard(onAddExpense) }
+        if (recentTransactions.isEmpty()) {
+            item { EmptyDashboard(colors, onAddExpense) }
         } else {
-            items(transactions.take(5), key = { it.id }) { transaction ->
-                TransactionRow(transaction)
+            items(recentTransactions, key = { it.id }) { transaction ->
+                TransactionRow(transaction, colors, amountsVisible)
             }
         }
-        item { Spacer(Modifier.height(72.dp)) }
     }
 }
 
 @Composable
-private fun GreetingHeader() {
+private fun DashboardHeader(colors: FinanceThemeColors, onOpenSettings: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().height(54.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text("Good to see you", color = FinanceColors.SecondaryText, style = MaterialTheme.typography.bodyMedium)
-            Text("My finances", style = MaterialTheme.typography.headlineSmall)
-        }
-        IconButton(
-            onClick = {},
-            modifier = Modifier
-                .size(48.dp)
-                .semantics { contentDescription = "Open profile and settings" },
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(FinanceColors.ElevatedSurface),
-                contentAlignment = Alignment.Center,
+        Text(
+            "RupeyaWise",
+            color = colors.primary,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(
+                onClick = {},
+                modifier = Modifier.semantics { contentDescription = "Notifications" },
             ) {
-                Text("ME", color = FinanceColors.PrimaryBlue, fontWeight = FontWeight.Bold)
+                Icon(Icons.Default.NotificationsNone, contentDescription = null, tint = colors.primaryText)
+            }
+            IconButton(
+                onClick = onOpenSettings,
+                modifier = Modifier.semantics { contentDescription = "Open profile and settings" },
+            ) {
+                Box(
+                    modifier = Modifier.size(34.dp).clip(CircleShape).background(colors.elevatedSurface),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Default.Person, contentDescription = null, tint = colors.secondaryText, modifier = Modifier.size(20.dp))
+                }
             }
         }
     }
 }
 
 @Composable
-private fun BalanceSummaryCard(balance: Long, income: Long, expenses: Long) {
+private fun BalanceCard(
+    balance: Long,
+    colors: FinanceThemeColors,
+    growthPercent: Int?,
+    amountsVisible: Boolean,
+    onToggleVisibility: () -> Unit,
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = FinanceColors.PrimarySurface),
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.dp, colors.border),
+        colors = CardDefaults.cardColors(containerColor = colors.surface),
     ) {
-        Column(
+        Box(
             modifier = Modifier
-                .background(
-                    Brush.linearGradient(listOf(ColorTokens.balanceStart, ColorTokens.balanceEnd))
-                )
-                .padding(20.dp),
+                .fillMaxWidth()
+                .background(Brush.linearGradient(listOf(colors.balanceStart, colors.balanceEnd)))
+                .padding(16.dp),
         ) {
-            Text("Total balance", color = FinanceColors.SecondaryText, style = MaterialTheme.typography.bodyMedium)
-            Text(
-                formatMoney(balance, withSign = true),
-                style = MaterialTheme.typography.displaySmall,
-                color = FinanceColors.PrimaryText,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-            Spacer(Modifier.height(24.dp))
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                SummaryMetric(
-                    modifier = Modifier.weight(1f),
-                    icon = Icons.Default.ArrowDownward,
-                    label = "Income",
-                    amount = income,
-                    color = FinanceColors.Positive,
-                )
-                Box(Modifier.width(1.dp).height(42.dp).background(FinanceColors.CardBorder))
-                SummaryMetric(
-                    modifier = Modifier.weight(1f),
-                    icon = Icons.Default.ArrowUpward,
-                    label = "Expenses",
-                    amount = expenses,
-                    color = FinanceColors.Negative,
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Total Balance", color = colors.secondaryText, style = MaterialTheme.typography.bodyMedium)
+                        IconButton(
+                            onClick = onToggleVisibility,
+                            modifier = Modifier.size(36.dp).semantics {
+                                contentDescription = if (amountsVisible) "Hide balances" else "Show balances"
+                            },
+                        ) {
+                            Icon(
+                                imageVector = if (amountsVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = null,
+                                tint = colors.secondaryText,
+                                modifier = Modifier.size(17.dp),
+                            )
+                        }
+                    }
+                    Text(
+                        text = if (amountsVisible) formatMoney(balance, withSign = balance < 0) else maskedAmount(),
+                        color = colors.primaryText,
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (growthPercent != null) {
+                        val positive = growthPercent >= 0
+                        Row(
+                            modifier = Modifier.padding(top = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                text = if (positive) "↑ ${growthPercent}%" else "↓ ${-growthPercent}%",
+                                color = if (positive) colors.primary else colors.expense,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text("vs last month", color = colors.secondaryText, style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
+                BalanceDecoration(
+                    colors = colors,
+                    modifier = Modifier.size(width = 116.dp, height = 92.dp),
                 )
             }
         }
@@ -188,82 +289,152 @@ private fun BalanceSummaryCard(balance: Long, income: Long, expenses: Long) {
 }
 
 @Composable
-private fun SummaryMetric(
-    modifier: Modifier,
-    icon: ImageVector,
-    label: String,
-    amount: Long,
-    color: androidx.compose.ui.graphics.Color,
-) {
-    Column(modifier = modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(17.dp))
-            Text(label, color = FinanceColors.SecondaryText, style = MaterialTheme.typography.labelMedium)
+private fun BalanceDecoration(colors: FinanceThemeColors, modifier: Modifier = Modifier) {
+    androidx.compose.foundation.Canvas(
+        modifier = modifier.semantics { contentDescription = "Decorative balance trend accent" },
+    ) {
+        val barWidth = size.width * 0.07f
+        val barGap = size.width * 0.08f
+        val base = size.height * 0.78f
+        listOf(0.35f, 0.54f, 0.77f).forEachIndexed { index, fraction ->
+            drawRoundRect(
+                color = colors.primary.copy(alpha = 0.9f),
+                topLeft = androidx.compose.ui.geometry.Offset(index * (barWidth + barGap), base - size.height * fraction),
+                size = androidx.compose.ui.geometry.Size(barWidth, size.height * fraction),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(barWidth, barWidth),
+            )
         }
-        Text(formatMoney(amount), color = FinanceColors.PrimaryText, fontWeight = FontWeight.SemiBold)
+        drawLine(
+            color = colors.primary.copy(alpha = 0.62f),
+            start = androidx.compose.ui.geometry.Offset(size.width * 0.27f, size.height * 0.87f),
+            end = androidx.compose.ui.geometry.Offset(size.width, size.height * 0.18f),
+            strokeWidth = 2.dp.toPx(),
+            cap = StrokeCap.Round,
+        )
     }
 }
 
 @Composable
-private fun SpendingOverviewCard(transactions: List<FinanceTransaction>) {
-    val days = remember { (0..6).map { LocalDate.now().minusDays((6 - it).toLong()) } }
-    val values = remember(transactions) {
-        days.map { day ->
-            transactions.filter { transaction ->
-                transaction.type == TransactionType.EXPENSE && transaction.localDate() == day
-            }.sumOf { it.amountMinor }
+private fun MonthlyMetricCard(
+    modifier: Modifier,
+    label: String,
+    amount: Long,
+    icon: ImageVector,
+    accent: Color,
+    colors: FinanceThemeColors,
+    amountsVisible: Boolean,
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = colors.surface),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    modifier = Modifier.size(30.dp).clip(CircleShape).background(accent),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(icon, contentDescription = null, tint = colors.appBackground, modifier = Modifier.size(17.dp))
+                }
+                Text(label, color = colors.secondaryText, style = MaterialTheme.typography.bodyMedium)
+            }
+            Text(
+                if (amountsVisible) formatMoney(amount) else maskedAmount(),
+                color = colors.primaryText,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text("This month", color = colors.secondaryText, style = MaterialTheme.typography.labelMedium)
         }
     }
-    var selectedIndex by remember { mutableIntStateOf(values.lastIndex.coerceAtLeast(0)) }
-    val maxValue = max(values.maxOrNull() ?: 0L, 1L)
-    val selectedValue = values.getOrNull(selectedIndex) ?: 0L
+}
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Spending overview", style = MaterialTheme.typography.titleLarge)
-            Text("Week", color = FinanceColors.PrimaryBlue, style = MaterialTheme.typography.bodyMedium)
+@Composable
+private fun WeeklySpendingCard(
+    spending: List<DailySpending>,
+    colors: FinanceThemeColors,
+    amountsVisible: Boolean,
+    onOpenInsights: () -> Unit,
+) {
+    val total = spending.sumOf { it.amountMinor }
+    val maxValue = spending.maxOfOrNull { it.amountMinor }?.coerceAtLeast(1L) ?: 1L
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text("This Week", color = colors.primaryText, style = MaterialTheme.typography.titleLarge)
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(onClick = onOpenInsights)
+                    .padding(start = 8.dp, top = 6.dp, bottom = 6.dp)
+                    .semantics { contentDescription = "Open weekly spending insights" },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    if (amountsVisible) formatMoney(total) else maskedAmount(),
+                    color = colors.primaryText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = colors.secondaryText, modifier = Modifier.size(18.dp))
+            }
         }
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = FinanceColors.PrimarySurface),
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = colors.surface),
         ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("This week", color = FinanceColors.SecondaryText, style = MaterialTheme.typography.bodyMedium)
-                Text(formatMoney(selectedValue), style = MaterialTheme.typography.titleLarge)
+            Column(Modifier.padding(horizontal = 12.dp, vertical = 14.dp)) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().height(100.dp),
+                    modifier = Modifier.fillMaxWidth().height(108.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.Bottom,
                 ) {
-                    values.forEachIndexed { index, value ->
-                        val fraction = (value.toFloat() / maxValue.toFloat()).coerceIn(0.08f, 1f)
-                        Box(
+                    spending.forEach { day ->
+                        val ratio = (day.amountMinor.toFloat() / maxValue.toFloat()).coerceIn(0f, 1f)
+                        val barHeight = (6f + ratio * 62f).dp
+                        Column(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxSize()
-                                .clickable { selectedIndex = index }
+                                .clickable { }
                                 .semantics {
-                                    contentDescription = "${days[index].dayOfWeek.name.lowercase()} ${formatMoney(value)}"
+                                    contentDescription = "${day.date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())}: ${formatMoney(day.amountMinor)}"
                                 },
-                            contentAlignment = Alignment.BottomCenter,
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Bottom,
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .fillMaxSize(fraction)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (index == selectedIndex) FinanceColors.PrimaryBlue else FinanceColors.ElevatedSurface),
+                                    .width(18.dp)
+                                    .height(barHeight)
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(if (day.amountMinor > 0) colors.primary else colors.elevatedSurface),
                             )
                         }
                     }
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    days.forEach { day ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    spending.forEach { day ->
                         Text(
-                            day.dayOfWeek.name.take(1),
-                            color = FinanceColors.MutedText,
+                            text = day.date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()).take(3),
+                            modifier = Modifier.weight(1f),
+                            color = colors.secondaryText,
                             style = MaterialTheme.typography.labelMedium,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         )
                     }
                 }
@@ -273,80 +444,142 @@ private fun SpendingOverviewCard(transactions: List<FinanceTransaction>) {
 }
 
 @Composable
-private fun TransactionRow(transaction: FinanceTransaction) {
+private fun TransactionRow(transaction: FinanceTransaction, colors: FinanceThemeColors, amountsVisible: Boolean) {
+    val amountColor = when (transaction.type) {
+        TransactionType.INCOME -> colors.income
+        TransactionType.EXPENSE -> colors.expense
+        TransactionType.TRANSFER -> colors.secondaryText
+    }
     val signedAmount = when (transaction.type) {
         TransactionType.INCOME -> transaction.amountMinor
-        else -> -transaction.amountMinor
+        TransactionType.EXPENSE -> -transaction.amountMinor
+        TransactionType.TRANSFER -> transaction.amountMinor
+    }
+    val title = when {
+        transaction.description.isNotBlank() -> transaction.description
+        transaction.type == TransactionType.TRANSFER -> "${transaction.account.name} → ${transaction.destinationAccount?.name.orEmpty()}"
+        else -> transaction.category.label
+    }
+    val dateText = transaction.localDateTime().format(DateTimeFormatter.ofPattern("dd MMM, h:mm a", Locale.getDefault()))
+    val subtitle = if (transaction.type == TransactionType.TRANSFER) {
+        "Transfer · ${transaction.account.name}"
+    } else {
+        "${transaction.category.label} · ${transaction.account.name}"
     }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.surface.copy(alpha = 0.72f))
+            .padding(horizontal = 10.dp, vertical = 9.dp)
+            .semantics {
+                contentDescription = "$title, $subtitle, $dateText, ${formatMoney(signedAmount, withSign = true)}"
+            },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            modifier = Modifier
-                .size(44.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(FinanceColors.ElevatedSurface),
+            modifier = Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(categoryBackground(transaction.category, colors)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(categoryIcon(transaction.category), contentDescription = transaction.category.label, tint = FinanceColors.PrimaryBlue)
+            Icon(categoryIcon(transaction.category), contentDescription = null, tint = colors.primaryText, modifier = Modifier.size(19.dp))
         }
-        Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(transaction.description.ifBlank { transaction.category.label }, fontWeight = FontWeight.SemiBold)
-            Text(
-                "${transaction.category.label} · ${transaction.localDate().format(DateTimeFormatter.ofPattern("dd MMM", Locale.getDefault()))}",
-                color = FinanceColors.MutedText,
-                style = MaterialTheme.typography.labelMedium,
-            )
+        Column(
+            modifier = Modifier.weight(1f).padding(horizontal = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(1.dp),
+        ) {
+            Text(title, color = colors.primaryText, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(subtitle, color = colors.secondaryText, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(dateText, color = colors.secondaryText.copy(alpha = 0.76f), style = MaterialTheme.typography.labelMedium)
         }
         Text(
-            formatMoney(signedAmount, withSign = true),
-            color = if (transaction.type == TransactionType.INCOME) FinanceColors.Positive else FinanceColors.Negative,
-            fontWeight = FontWeight.SemiBold,
+            if (amountsVisible) formatMoney(signedAmount, transaction.currencyCode, withSign = true) else maskedAmount(),
+            color = amountColor,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
 
 @Composable
-private fun EmptyDashboard(onAddExpense: () -> Unit) {
+private fun EmptyDashboard(colors: FinanceThemeColors, onAddExpense: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = FinanceColors.PrimarySurface),
-        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = colors.surface),
+        shape = RoundedCornerShape(18.dp),
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(24.dp),
+            modifier = Modifier.fillMaxWidth().padding(22.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp),
         ) {
-            Icon(Icons.Default.Add, contentDescription = null, tint = FinanceColors.PrimaryBlue, modifier = Modifier.size(28.dp))
-            Text("Add your first expense", style = MaterialTheme.typography.titleLarge)
-            Text("Track your spending and understand your finances at a glance.", color = FinanceColors.SecondaryText)
-            androidx.compose.material3.TextButton(onClick = onAddExpense) { Text("Add expense") }
+            Icon(Icons.Default.Add, contentDescription = null, tint = colors.primary, modifier = Modifier.size(28.dp))
+            Text("No transactions yet", color = colors.primaryText, style = MaterialTheme.typography.titleLarge)
+            Text(
+                "Add your first transaction to see your finances here.",
+                color = colors.secondaryText,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Button(onClick = onAddExpense, shape = RoundedCornerShape(12.dp)) { Text("Add transaction") }
         }
     }
 }
 
-private fun FinanceTransaction.localDate(): LocalDate =
-    Instant.ofEpochMilli(timestampMillis).atZone(ZoneId.systemDefault()).toLocalDate()
+private data class DailySpending(val date: LocalDate, val amountMinor: Long)
+
+private fun weekSpending(transactions: List<FinanceTransaction>, today: LocalDate): List<DailySpending> {
+    val monday = today.minusDays((today.dayOfWeek.value - 1).toLong())
+    return (0L..6L).map { offset ->
+        val date = monday.plusDays(offset)
+        DailySpending(
+            date = date,
+            amountMinor = transactions.asSequence()
+                .filter { it.type == TransactionType.EXPENSE && it.localDate() == date }
+                .sumOf { it.amountMinor },
+        )
+    }
+}
+
+private fun monthlyGrowthPercent(transactions: List<FinanceTransaction>, currentMonth: YearMonth): Int? {
+    val previousMonth = currentMonth.minusMonths(1)
+    val currentNet = monthlyNet(transactions, currentMonth)
+    val previousNet = monthlyNet(transactions, previousMonth)
+    if (previousNet == 0L) return null
+    return (((currentNet - previousNet).toDouble() / kotlin.math.abs(previousNet.toDouble())) * 100).roundToInt()
+}
+
+private fun monthlyNet(transactions: List<FinanceTransaction>, month: YearMonth): Long =
+    transactions.asSequence()
+        .filter { YearMonth.from(it.localDate()) == month }
+        .sumOf {
+            when (it.type) {
+                TransactionType.INCOME -> it.amountMinor
+                TransactionType.EXPENSE -> -it.amountMinor
+                TransactionType.TRANSFER -> 0L
+            }
+        }
+
+private fun maskedAmount(): String = "Rs •••,•••"
+
+private fun FinanceTransaction.localDateTime() =
+    Instant.ofEpochMilli(timestampMillis).atZone(ZoneId.systemDefault()).toLocalDateTime()
+
+private fun FinanceTransaction.localDate(): LocalDate = localDateTime().toLocalDate()
 
 private fun categoryIcon(category: FinanceCategory): ImageVector = when (category) {
     FinanceCategory.FOOD -> Icons.Default.Restaurant
     FinanceCategory.TRANSPORT -> Icons.Default.DirectionsCar
     FinanceCategory.BILLS -> Icons.Default.ReceiptLong
-    FinanceCategory.SHOPPING -> Icons.Default.ShoppingBag
+    FinanceCategory.SHOPPING -> Icons.Default.ShoppingCart
     FinanceCategory.HEALTH -> Icons.Default.Favorite
     FinanceCategory.EDUCATION -> Icons.Default.School
-    FinanceCategory.ENTERTAINMENT -> Icons.Default.Movie
-    FinanceCategory.SALARY -> Icons.Default.Payments
-    FinanceCategory.FREELANCE -> Icons.Default.Work
+    FinanceCategory.ENTERTAINMENT -> Icons.Default.MoreHoriz
+    FinanceCategory.SALARY -> Icons.Default.Work
+    FinanceCategory.FREELANCE -> Icons.Default.Payments
     FinanceCategory.TRANSFER -> Icons.Default.SwapHoriz
-    FinanceCategory.OTHER -> Icons.Default.MoreHoriz
+    FinanceCategory.OTHER -> Icons.Default.LocalGasStation
 }
 
-private object ColorTokens {
-    val balanceStart = FinanceColors.ElevatedSurface
-    val balanceEnd = FinanceColors.PrimarySurface
-}
+private fun categoryBackground(category: FinanceCategory, colors: FinanceThemeColors): Color =
+    colors.categoryTints[category.ordinal.coerceIn(0, colors.categoryTints.lastIndex)]

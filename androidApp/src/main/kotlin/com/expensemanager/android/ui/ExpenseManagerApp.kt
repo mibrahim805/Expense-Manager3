@@ -16,6 +16,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -33,11 +34,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.expensemanager.android.core.designsystem.FinanceColors
+import com.expensemanager.android.core.designsystem.FinanceThemeMode
 import com.expensemanager.android.core.presentation.FinanceEvent
 import com.expensemanager.android.core.presentation.FinanceViewModel
 import com.expensemanager.android.feature.home.HomeScreen
+import com.expensemanager.android.feature.activity.ActivityScreen
 import com.expensemanager.android.feature.transactions.AddTransactionScreen
+import com.expensemanager.android.feature.settings.SettingsScreen
 
 private data class TopLevelDestination(
     val route: String,
@@ -54,14 +57,19 @@ private val topLevelDestinations = listOf(
 
 @Composable
 @androidx.compose.material3.ExperimentalMaterial3Api
-fun ExpenseManagerApp(viewModel: FinanceViewModel) {
+fun ExpenseManagerApp(
+    viewModel: FinanceViewModel,
+    themeMode: FinanceThemeMode,
+    onThemeChange: (FinanceThemeMode) -> Unit,
+) {
     val navController = rememberNavController()
     val transactions by viewModel.transactions.collectAsStateWithLifecycle()
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
-    val isEditor = currentRoute == "add"
+    val isFullscreen = currentRoute == "add" || currentRoute == "settings" || currentRoute?.startsWith("edit/") == true
+    val colors = MaterialTheme.colorScheme
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -70,6 +78,11 @@ fun ExpenseManagerApp(viewModel: FinanceViewModel) {
                     navController.popBackStack()
                     snackbarHostState.showSnackbar("Transaction saved")
                 }
+                FinanceEvent.TransactionUpdated -> {
+                    navController.popBackStack()
+                    snackbarHostState.showSnackbar("Transaction updated")
+                }
+                FinanceEvent.TransactionDeleted -> snackbarHostState.showSnackbar("Transaction deleted")
                 is FinanceEvent.Error -> snackbarHostState.showSnackbar(event.message)
             }
         }
@@ -77,11 +90,11 @@ fun ExpenseManagerApp(viewModel: FinanceViewModel) {
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = FinanceColors.AppBackground,
+        containerColor = colors.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
-            if (!isEditor) {
-                NavigationBar(containerColor = FinanceColors.PrimarySurface) {
+            if (!isFullscreen) {
+                NavigationBar(containerColor = colors.surface) {
                     topLevelDestinations.forEach { destination ->
                         val selected = currentRoute == destination.route
                         NavigationBarItem(
@@ -93,7 +106,14 @@ fun ExpenseManagerApp(viewModel: FinanceViewModel) {
                                     restoreState = true
                                 }
                             },
-                            icon = { Icon(destination.icon, contentDescription = null) },
+                            colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
+                                selectedIconColor = colors.primary,
+                                selectedTextColor = colors.primary,
+                                indicatorColor = colors.surfaceVariant,
+                                unselectedIconColor = colors.onSurfaceVariant,
+                                unselectedTextColor = colors.onSurfaceVariant,
+                            ),
+                            icon = { Icon(destination.icon, contentDescription = destination.label) },
                             label = { Text(destination.label) },
                         )
                     }
@@ -101,11 +121,11 @@ fun ExpenseManagerApp(viewModel: FinanceViewModel) {
             }
         },
         floatingActionButton = {
-            if (!isEditor) {
+            if (!isFullscreen) {
                 FloatingActionButton(
                     onClick = { navController.navigate("add") },
-                    containerColor = FinanceColors.PrimaryBlue,
-                    contentColor = FinanceColors.PrimaryText,
+                    containerColor = colors.primary,
+                    contentColor = colors.onPrimary,
                     modifier = Modifier.semantics { contentDescription = "Add transaction" },
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null)
@@ -116,7 +136,7 @@ fun ExpenseManagerApp(viewModel: FinanceViewModel) {
         NavHost(
             navController = navController,
             startDestination = "home",
-            modifier = if (isEditor) {
+            modifier = if (isFullscreen) {
                 Modifier.windowInsetsPadding(WindowInsets.safeDrawing)
             } else {
                 Modifier.padding(paddingValues)
@@ -127,6 +147,8 @@ fun ExpenseManagerApp(viewModel: FinanceViewModel) {
                     transactions = transactions,
                     onAddExpense = { navController.navigate("add") },
                     onViewAll = { navController.navigate("activity") },
+                    onOpenInsights = { navController.navigate("insights") },
+                    onOpenSettings = { navController.navigate("settings") },
                 )
             }
             composable("add") {
@@ -136,7 +158,34 @@ fun ExpenseManagerApp(viewModel: FinanceViewModel) {
                     onSave = viewModel::saveTransaction,
                 )
             }
-            composable("activity") { PlaceholderScreen("Activity", "Your complete transaction history will appear here.") }
+            composable("edit/{transactionId}") { entry ->
+                val transactionId = entry.arguments?.getString("transactionId")?.toLongOrNull()
+                val transaction = transactions.firstOrNull { it.id == transactionId }
+                if (transaction != null) {
+                    AddTransactionScreen(
+                        isSaving = isSaving,
+                        existingTransaction = transaction,
+                        onBack = { navController.popBackStack() },
+                        onSave = { draft -> viewModel.updateTransaction(transaction.id, draft) },
+                    )
+                } else {
+                    PlaceholderScreen("Transaction unavailable", "This transaction could not be found.")
+                }
+            }
+            composable("settings") {
+                SettingsScreen(
+                    selectedTheme = themeMode,
+                    onBack = { navController.popBackStack() },
+                    onThemeSelected = onThemeChange,
+                )
+            }
+            composable("activity") {
+                ActivityScreen(
+                    transactions = transactions,
+                    onEditTransaction = { transaction -> navController.navigate("edit/${transaction.id}") },
+                    onDeleteTransaction = { transaction -> viewModel.deleteTransaction(transaction.id) },
+                )
+            }
             composable("budgets") { PlaceholderScreen("Budgets", "Budget planning is coming next.") }
             composable("insights") { PlaceholderScreen("Insights", "Financial insights are coming next.") }
         }
@@ -151,7 +200,7 @@ private fun PlaceholderScreen(title: String, message: String) {
     ) {
         androidx.compose.foundation.layout.Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
             Text(title, style = androidx.compose.material3.MaterialTheme.typography.headlineSmall)
-            Text(message, color = FinanceColors.SecondaryText)
+            Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
