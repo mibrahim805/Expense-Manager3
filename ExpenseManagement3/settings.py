@@ -155,7 +155,11 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    SECURE_SSL_REDIRECT = True
+    # The hosting edge already redirects HTTP to HTTPS. Keeping Django's
+    # redirect enabled behind that proxy creates an HTTPS-to-HTTPS loop.
+    SECURE_SSL_REDIRECT = os.environ.get(
+        'DJANGO_SECURE_SSL_REDIRECT', 'False',
+    ).lower() == 'true'
     SECURE_HSTS_SECONDS = int(os.environ.get('DJANGO_SECURE_HSTS_SECONDS', '86400'))
 
 EMAIL_BACKEND = os.environ.get(
