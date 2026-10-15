@@ -20,12 +20,14 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -39,11 +41,14 @@ import androidx.compose.ui.unit.dp
 import com.expensemanager.android.core.designsystem.FinanceThemeMode
 import com.expensemanager.android.core.designsystem.financeColors
 import com.expensemanager.android.core.designsystem.financeThemeColors
+import com.expensemanager.android.core.auth.AuthUser
 
 @Composable
 fun SettingsScreen(
     selectedTheme: FinanceThemeMode,
+    currentUser: AuthUser,
     onBack: () -> Unit,
+    onLogout: () -> Unit,
     onThemeSelected: (FinanceThemeMode) -> Unit,
 ) {
     val colors = financeColors()
@@ -91,6 +96,24 @@ fun SettingsScreen(
             iconTint = financeThemeColors(FinanceThemeMode.ALMOND).primary,
             onClick = { onThemeSelected(FinanceThemeMode.ALMOND) },
         )
+        Text("Account", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 22.dp))
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+            colors = CardDefaults.cardColors(containerColor = colors.surface),
+        ) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(currentUser.username, fontWeight = FontWeight.SemiBold)
+                Text(currentUser.email, color = colors.secondaryText, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+        OutlinedButton(
+            onClick = onLogout,
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+        ) {
+            Icon(Icons.Default.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.size(8.dp))
+            Text("Log out")
+        }
     }
 }
 

@@ -7,6 +7,7 @@
         android:allowBackup="false"
         android:icon="@drawable/ic_launcher"
         android:label="RupeyaWise"
+        android:usesCleartextTraffic="${usesCleartextTraffic}"
         android:supportsRtl="true"
         android:theme="@style/Theme.RupeyaWise">
         <activity
@@ -15,6 +16,12 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="rupeyawise" android:host="auth" android:path="/reset" />
             </intent-filter>
         </activity>
     </application>

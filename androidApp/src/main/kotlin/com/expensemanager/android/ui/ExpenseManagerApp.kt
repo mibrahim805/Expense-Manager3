@@ -35,6 +35,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.expensemanager.android.core.designsystem.FinanceThemeMode
+import com.expensemanager.android.core.auth.AuthUser
 import com.expensemanager.android.core.presentation.FinanceEvent
 import com.expensemanager.android.core.presentation.FinanceViewModel
 import com.expensemanager.android.feature.home.HomeScreen
@@ -62,6 +63,8 @@ private val topLevelDestinations = listOf(
 fun ExpenseManagerApp(
     viewModel: FinanceViewModel,
     themeMode: FinanceThemeMode,
+    currentUser: AuthUser,
+    onLogout: () -> Unit,
     onThemeChange: (FinanceThemeMode) -> Unit,
 ) {
     val navController = rememberNavController()
@@ -180,7 +183,9 @@ fun ExpenseManagerApp(
             composable("settings") {
                 SettingsScreen(
                     selectedTheme = themeMode,
+                    currentUser = currentUser,
                     onBack = { navController.popBackStack() },
+                    onLogout = onLogout,
                     onThemeSelected = onThemeChange,
                 )
             }

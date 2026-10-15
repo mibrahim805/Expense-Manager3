@@ -4,6 +4,11 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+val authApiBaseUrl = providers.gradleProperty("rupeyawiseApiBaseUrl")
+    .orElse("http://10.0.2.2:8000/")
+    .get()
+    .let { if (it.endsWith("/")) it else "$it/" }
+
 android {
     namespace = "com.expensemanager.android"
     compileSdk = 37
@@ -17,10 +22,16 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
+        buildConfigField("String", "AUTH_API_BASE_URL", "\"$authApiBaseUrl\"")
+        manifestPlaceholders["usesCleartextTraffic"] = "false"
     }
 
     buildTypes {
+        debug {
+            manifestPlaceholders["usesCleartextTraffic"] = "true"
+        }
         release {
+            manifestPlaceholders["usesCleartextTraffic"] = "false"
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
