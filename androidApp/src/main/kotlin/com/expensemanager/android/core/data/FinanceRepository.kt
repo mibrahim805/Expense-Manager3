@@ -12,64 +12,79 @@ import com.expensemanager.android.core.model.TransactionDraft
 import com.expensemanager.android.core.model.TransactionType
 import com.expensemanager.android.core.model.validateTransactionDraft
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 
 class FinanceRepository(
     private val transactionDao: TransactionDao,
     private val budgetDao: BudgetDao,
 ) {
-    val transactions: Flow<List<FinanceTransaction>> = transactionDao.observeAll().map { records ->
-        records.map { record ->
-            FinanceTransaction(
-                id = record.id,
-                type = TransactionType.valueOf(record.type),
-                amountMinor = record.amountMinor,
-                currencyCode = record.currencyCode,
-                category = FinanceCategory.fromKey(record.categoryKey),
-                description = record.description,
-                account = Account(record.accountId, record.accountName, record.currencyCode),
-                destinationAccount = record.destinationAccountId?.let {
-                    Account(it, record.destinationAccountName.orEmpty(), record.currencyCode)
-                },
-                timestampMillis = record.timestampMillis,
-            )
-        }
-    }
+    private val ownerId = MutableStateFlow(com.expensemanager.android.core.data.local.FinanceDatabase.LOCAL_OWNER_ID)
 
-    val budgets: Flow<List<CategoryBudget>> = budgetDao.observeAll().map { records ->
-        records.map { record ->
-            CategoryBudget(
-                category = FinanceCategory.fromKey(record.categoryKey),
-                limitMinor = record.limitMinor,
-                currencyCode = record.currencyCode,
-            )
+    val transactions: Flow<List<FinanceTransaction>> = ownerId
+        .flatMapLatest { currentOwner -> transactionDao.observeAll(currentOwner) }
+        .map { records ->
+            records.map { record ->
+                FinanceTransaction(
+                    id = record.id,
+                    type = TransactionType.valueOf(record.type),
+                    amountMinor = record.amountMinor,
+                    currencyCode = record.currencyCode,
+                    category = FinanceCategory.fromKey(record.categoryKey),
+                    description = record.description,
+                    account = Account(record.accountId, record.accountName, record.currencyCode),
+                    destinationAccount = record.destinationAccountId?.let {
+                        Account(it, record.destinationAccountName.orEmpty(), record.currencyCode)
+                    },
+                    timestampMillis = record.timestampMillis,
+                )
+            }
         }
+
+    val budgets: Flow<List<CategoryBudget>> = ownerId
+        .flatMapLatest { currentOwner -> budgetDao.observeAll(currentOwner) }
+        .map { records ->
+            records.map { record ->
+                CategoryBudget(
+                    category = FinanceCategory.fromKey(record.categoryKey),
+                    limitMinor = record.limitMinor,
+                    currencyCode = record.currencyCode,
+                )
+            }
+        }
+
+    suspend fun setOwner(userId: String) {
+        require(userId.isNotBlank())
+        transactionDao.claimLocalTransactions(userId, com.expensemanager.android.core.data.local.FinanceDatabase.LOCAL_OWNER_ID)
+        budgetDao.claimLocalBudgets(userId, com.expensemanager.android.core.data.local.FinanceDatabase.LOCAL_OWNER_ID)
+        ownerId.value = userId
     }
 
     suspend fun addTransaction(draft: TransactionDraft): Boolean {
         val validation = validateTransactionDraft(draft)
         require(validation.isValid) { validation.message ?: "Invalid transaction." }
-        return transactionDao.insert(draft.toEntity()) != -1L
+        return transactionDao.insert(draft.toEntity(ownerId.value)) != -1L
     }
 
     suspend fun updateTransaction(id: Long, draft: TransactionDraft): Boolean {
         val validation = validateTransactionDraft(draft)
         require(validation.isValid) { validation.message ?: "Invalid transaction." }
-        return transactionDao.update(draft.toEntity(id)) > 0
+        return transactionDao.update(draft.toEntity(ownerId.value, id)) > 0
     }
 
-    suspend fun deleteTransaction(id: Long): Boolean = transactionDao.deleteById(id) > 0
+    suspend fun deleteTransaction(id: Long): Boolean = transactionDao.deleteById(id, ownerId.value) > 0
 
     suspend fun setBudget(category: FinanceCategory, limitMinor: Long) {
         require(category in FinanceCategory.forType(TransactionType.EXPENSE)) { "Choose an expense category." }
         require(limitMinor > 0L) { "Enter a budget greater than zero." }
-        budgetDao.upsert(BudgetEntity(category.key, limitMinor))
+        budgetDao.upsert(BudgetEntity(ownerId = ownerId.value, categoryKey = category.key, limitMinor = limitMinor))
     }
 
     suspend fun deleteBudget(category: FinanceCategory): Boolean =
-        budgetDao.deleteByCategory(category.key) > 0
+        budgetDao.deleteByCategory(category.key, ownerId.value) > 0
 
-    private fun TransactionDraft.toEntity(id: Long = 0L) = TransactionEntity(
+    private fun TransactionDraft.toEntity(ownerId: String, id: Long = 0L) = TransactionEntity(
         id = id,
         type = type.name,
         amountMinor = amountMinor,
@@ -82,5 +97,6 @@ class FinanceRepository(
         destinationAccountName = destinationAccount?.name,
         timestampMillis = timestampMillis,
         requestId = requestId,
+        ownerId = ownerId,
     )
 }

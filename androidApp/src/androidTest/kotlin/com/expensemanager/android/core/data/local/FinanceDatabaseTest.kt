@@ -52,7 +52,7 @@ class FinanceDatabaseTest {
         database!!.close()
 
         database = openDatabase()
-        val records = database!!.transactionDao().observeAll().first()
+        val records = database!!.transactionDao().observeAll(FinanceDatabase.LOCAL_OWNER_ID).first()
 
         assertEquals(1, records.size)
         assertEquals(2_450L, records.single().amountMinor)
@@ -71,7 +71,7 @@ class FinanceDatabaseTest {
         database!!.close()
 
         database = openDatabase()
-        val budgets = database!!.budgetDao().observeAll().first()
+        val budgets = database!!.budgetDao().observeAll(FinanceDatabase.LOCAL_OWNER_ID).first()
 
         assertEquals(1, budgets.size)
         assertEquals(FinanceCategory.FOOD.key, budgets.single().categoryKey)

@@ -24,4 +24,6 @@ data class TransactionEntity(
     val destinationAccountName: String? = null,
     val timestampMillis: Long,
     val requestId: String? = null,
+    @androidx.room.ColumnInfo(defaultValue = "'local'")
+    val ownerId: String = FinanceDatabase.LOCAL_OWNER_ID,
 )
