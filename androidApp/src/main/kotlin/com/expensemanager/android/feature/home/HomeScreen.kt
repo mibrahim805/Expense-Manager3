@@ -234,7 +234,7 @@ private fun BalanceCard(
         ) {
             BalanceDecoration(
                 colors = colors,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.matchParentSize(),
             )
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -292,7 +292,7 @@ private fun BalanceDecoration(colors: FinanceThemeColors, modifier: Modifier = M
         val chartWidth = barWidth * 3f + barGap * 2f
         val startX = size.width - chartWidth - size.width * 0.04f
         val base = size.height * 0.82f
-        val accent = colors.primary.copy(alpha = 0.28f)
+        val accent = colors.primary.copy(alpha = 0.55f)
         listOf(0.35f, 0.54f, 0.77f).forEachIndexed { index, fraction ->
             drawRoundRect(
                 color = accent,
@@ -302,7 +302,7 @@ private fun BalanceDecoration(colors: FinanceThemeColors, modifier: Modifier = M
             )
         }
         drawLine(
-            color = colors.primary.copy(alpha = 0.22f),
+            color = colors.primary.copy(alpha = 0.4f),
             start = androidx.compose.ui.geometry.Offset(startX - size.width * 0.08f, size.height * 0.88f),
             end = androidx.compose.ui.geometry.Offset(size.width * 0.97f, size.height * 0.2f),
             strokeWidth = 2.dp.toPx(),
