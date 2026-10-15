@@ -6,9 +6,10 @@ import androidx.room.migration.Migration
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [TransactionEntity::class], version = 3, exportSchema = false)
+@Database(entities = [TransactionEntity::class, BudgetEntity::class], version = 4, exportSchema = false)
 abstract class FinanceDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao
+    abstract fun budgetDao(): BudgetDao
 
     companion object {
         @Volatile
@@ -37,6 +38,18 @@ abstract class FinanceDatabase : RoomDatabase() {
             }
         }
 
-        val migrations: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS budgets (" +
+                        "categoryKey TEXT NOT NULL, " +
+                        "limitMinor INTEGER NOT NULL, " +
+                        "currencyCode TEXT NOT NULL, " +
+                        "PRIMARY KEY(categoryKey))"
+                )
+            }
+        }
+
+        val migrations: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
     }
 }

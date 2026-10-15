@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.expensemanager.android.core.data.FinanceRepository
+import com.expensemanager.android.core.model.CategoryBudget
+import com.expensemanager.android.core.model.FinanceCategory
 import com.expensemanager.android.core.model.TransactionDraft
 import com.expensemanager.android.core.model.FinanceTransaction
 import com.expensemanager.android.core.model.validateTransactionDraft
@@ -19,11 +21,19 @@ sealed interface FinanceEvent {
     data object TransactionSaved : FinanceEvent
     data object TransactionUpdated : FinanceEvent
     data object TransactionDeleted : FinanceEvent
+    data object BudgetSaved : FinanceEvent
+    data object BudgetDeleted : FinanceEvent
     data class Error(val message: String) : FinanceEvent
 }
 
 class FinanceViewModel(private val repository: FinanceRepository) : ViewModel() {
     val transactions: StateFlow<List<FinanceTransaction>> = repository.transactions.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList(),
+    )
+
+    val budgets: StateFlow<List<CategoryBudget>> = repository.budgets.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList(),
@@ -83,6 +93,27 @@ class FinanceViewModel(private val repository: FinanceRepository) : ViewModel() 
                     else _events.emit(FinanceEvent.Error("This transaction no longer exists."))
                 }
                 .onFailure { _events.emit(FinanceEvent.Error("Could not delete this transaction. Try again.")) }
+        }
+    }
+
+    fun setBudget(category: FinanceCategory, limitMinor: Long) {
+        viewModelScope.launch {
+            runCatching { repository.setBudget(category, limitMinor) }
+                .onSuccess { _events.emit(FinanceEvent.BudgetSaved) }
+                .onFailure { error ->
+                    _events.emit(FinanceEvent.Error(error.message ?: "Could not save this budget."))
+                }
+        }
+    }
+
+    fun deleteBudget(category: FinanceCategory) {
+        viewModelScope.launch {
+            runCatching { repository.deleteBudget(category) }
+                .onSuccess { deleted ->
+                    if (deleted) _events.emit(FinanceEvent.BudgetDeleted)
+                    else _events.emit(FinanceEvent.Error("This budget no longer exists."))
+                }
+                .onFailure { _events.emit(FinanceEvent.Error("Could not delete this budget.")) }
         }
     }
 }

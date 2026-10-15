@@ -56,6 +56,12 @@ data class FinanceTransaction(
     val timestampMillis: Long,
 )
 
+data class CategoryBudget(
+    val category: FinanceCategory,
+    val limitMinor: Long,
+    val currencyCode: String = "PKR",
+)
+
 data class TransactionDraft(
     val type: TransactionType,
     val amountMinor: Long,

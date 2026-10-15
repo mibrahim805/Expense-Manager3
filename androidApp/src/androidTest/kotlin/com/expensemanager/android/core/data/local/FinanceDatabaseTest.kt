@@ -59,6 +59,25 @@ class FinanceDatabaseTest {
         assertEquals("stable-request-id", records.single().requestId)
     }
 
+    @Test
+    fun budgetsPersistAfterDatabaseReopen() = runBlocking {
+        database = openDatabase()
+        database!!.budgetDao().upsert(
+            BudgetEntity(
+                categoryKey = FinanceCategory.FOOD.key,
+                limitMinor = 25_000,
+            )
+        )
+        database!!.close()
+
+        database = openDatabase()
+        val budgets = database!!.budgetDao().observeAll().first()
+
+        assertEquals(1, budgets.size)
+        assertEquals(FinanceCategory.FOOD.key, budgets.single().categoryKey)
+        assertEquals(25_000L, budgets.single().limitMinor)
+    }
+
     private fun openDatabase(): FinanceDatabase =
         Room.databaseBuilder(context, FinanceDatabase::class.java, databaseName)
             .addMigrations(*FinanceDatabase.migrations)

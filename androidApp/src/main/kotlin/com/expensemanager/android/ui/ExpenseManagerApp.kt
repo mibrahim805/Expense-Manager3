@@ -39,6 +39,7 @@ import com.expensemanager.android.core.presentation.FinanceEvent
 import com.expensemanager.android.core.presentation.FinanceViewModel
 import com.expensemanager.android.feature.home.HomeScreen
 import com.expensemanager.android.feature.activity.ActivityScreen
+import com.expensemanager.android.feature.budgets.BudgetsScreen
 import com.expensemanager.android.feature.transactions.AddTransactionScreen
 import com.expensemanager.android.feature.settings.SettingsScreen
 
@@ -64,6 +65,7 @@ fun ExpenseManagerApp(
 ) {
     val navController = rememberNavController()
     val transactions by viewModel.transactions.collectAsStateWithLifecycle()
+    val budgets by viewModel.budgets.collectAsStateWithLifecycle()
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -83,6 +85,8 @@ fun ExpenseManagerApp(
                     snackbarHostState.showSnackbar("Transaction updated")
                 }
                 FinanceEvent.TransactionDeleted -> snackbarHostState.showSnackbar("Transaction deleted")
+                FinanceEvent.BudgetSaved -> snackbarHostState.showSnackbar("Budget saved")
+                FinanceEvent.BudgetDeleted -> snackbarHostState.showSnackbar("Budget deleted")
                 is FinanceEvent.Error -> snackbarHostState.showSnackbar(event.message)
             }
         }
@@ -186,7 +190,14 @@ fun ExpenseManagerApp(
                     onDeleteTransaction = { transaction -> viewModel.deleteTransaction(transaction.id) },
                 )
             }
-            composable("budgets") { PlaceholderScreen("Budgets", "Budget planning is coming next.") }
+            composable("budgets") {
+                BudgetsScreen(
+                    transactions = transactions,
+                    budgets = budgets,
+                    onSetBudget = viewModel::setBudget,
+                    onDeleteBudget = viewModel::deleteBudget,
+                )
+            }
             composable("insights") { PlaceholderScreen("Insights", "Financial insights are coming next.") }
         }
     }

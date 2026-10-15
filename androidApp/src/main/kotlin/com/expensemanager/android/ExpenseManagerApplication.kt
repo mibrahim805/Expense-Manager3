@@ -7,6 +7,6 @@ import com.expensemanager.android.core.data.preferences.ThemePreferences
 
 class ExpenseManagerApplication : Application() {
     private val database by lazy { FinanceDatabase.getInstance(this) }
-    val financeRepository by lazy { FinanceRepository(database.transactionDao()) }
+    val financeRepository by lazy { FinanceRepository(database.transactionDao(), database.budgetDao()) }
     val themePreferences by lazy { ThemePreferences(this) }
 }
