@@ -1,6 +1,7 @@
 package com.expensemanager.android.feature.insights
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,9 +23,12 @@ import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -46,10 +50,12 @@ import com.expensemanager.android.core.designsystem.FinanceThemeColors
 import com.expensemanager.android.core.designsystem.financeColors
 import com.expensemanager.android.core.model.CategorySpending
 import com.expensemanager.android.core.model.FinanceInsights
+import com.expensemanager.android.core.model.FinanceCategory
 import com.expensemanager.android.core.model.FinanceTransaction
 import com.expensemanager.android.core.model.MonthlyFinanceSnapshot
 import com.expensemanager.android.core.model.calculateFinanceInsights
 import com.expensemanager.android.core.model.formatMoney
+import com.expensemanager.android.core.model.maskedMoney
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -57,7 +63,12 @@ import java.util.Locale
 import kotlin.math.absoluteValue
 
 @Composable
-fun InsightsScreen(transactions: List<FinanceTransaction>) {
+fun InsightsScreen(
+    transactions: List<FinanceTransaction>,
+    amountsVisible: Boolean,
+    onToggleAmountsVisibility: () -> Unit,
+    onOpenCategory: (FinanceCategory) -> Unit,
+) {
     val colors = financeColors()
     val month = YearMonth.now()
     val insights = remember(transactions, month) { calculateFinanceInsights(transactions, month) }
@@ -68,16 +79,32 @@ fun InsightsScreen(transactions: List<FinanceTransaction>) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Insights", color = colors.primaryText, style = MaterialTheme.typography.headlineSmall)
-                Text(
-                    "Your money story for ${month.month.getDisplayName(TextStyle.FULL, Locale.getDefault())}",
-                    color = colors.secondaryText,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Insights", color = colors.primaryText, style = MaterialTheme.typography.headlineSmall)
+                    Text(
+                        "Your money story for ${month.month.getDisplayName(TextStyle.FULL, Locale.getDefault())}",
+                        color = colors.secondaryText,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                IconButton(
+                    onClick = onToggleAmountsVisibility,
+                    modifier = Modifier.semantics {
+                        contentDescription = if (amountsVisible) "Hide amounts" else "Show amounts"
+                    },
+                ) {
+                    Icon(
+                        if (amountsVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                        contentDescription = null,
+                    )
+                }
             }
         }
-        item { CashFlowCard(insights, colors) }
+        item { CashFlowCard(insights, colors, amountsVisible) }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 InsightMetricCard(
@@ -87,6 +114,7 @@ fun InsightsScreen(transactions: List<FinanceTransaction>) {
                     icon = Icons.Default.ArrowUpward,
                     accent = colors.income,
                     colors = colors,
+                    amountsVisible = amountsVisible,
                 )
                 InsightMetricCard(
                     modifier = Modifier.weight(1f),
@@ -95,17 +123,26 @@ fun InsightsScreen(transactions: List<FinanceTransaction>) {
                     icon = Icons.Default.ArrowDownward,
                     accent = colors.expense,
                     colors = colors,
+                    amountsVisible = amountsVisible,
                 )
             }
         }
         item { SixMonthTrendCard(insights.sixMonthHistory, colors) }
-        item { CategoryBreakdownCard(insights.categorySpending, insights.current.expenseMinor, colors) }
-        item { HighlightsCard(insights, colors) }
+        item {
+            CategoryBreakdownCard(
+                categories = insights.categorySpending,
+                totalExpenses = insights.current.expenseMinor,
+                colors = colors,
+                amountsVisible = amountsVisible,
+                onOpenCategory = onOpenCategory,
+            )
+        }
+        item { HighlightsCard(insights, colors, amountsVisible) }
     }
 }
 
 @Composable
-private fun CashFlowCard(insights: FinanceInsights, colors: FinanceThemeColors) {
+private fun CashFlowCard(insights: FinanceInsights, colors: FinanceThemeColors, amountsVisible: Boolean) {
     val net = insights.current.netMinor
     val netColor = if (net >= 0L) colors.income else colors.expense
     Card(
@@ -124,7 +161,7 @@ private fun CashFlowCard(insights: FinanceInsights, colors: FinanceThemeColors) 
                 Icon(Icons.Default.Savings, contentDescription = null, tint = colors.primary, modifier = Modifier.size(22.dp))
             }
             Text(
-                formatMoney(net.absoluteValue),
+                if (amountsVisible) formatMoney(net.absoluteValue) else maskedMoney(),
                 color = netColor,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
@@ -155,6 +192,7 @@ private fun InsightMetricCard(
     icon: ImageVector,
     accent: Color,
     colors: FinanceThemeColors,
+    amountsVisible: Boolean,
 ) {
     Card(modifier = modifier, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(colors.surface)) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -165,7 +203,7 @@ private fun InsightMetricCard(
                 Text(label, color = colors.secondaryText, style = MaterialTheme.typography.bodyMedium)
             }
             Text(
-                formatMoney(amount),
+                if (amountsVisible) formatMoney(amount) else maskedMoney(),
                 color = colors.primaryText,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold,
@@ -231,6 +269,8 @@ private fun CategoryBreakdownCard(
     categories: List<CategorySpending>,
     totalExpenses: Long,
     colors: FinanceThemeColors,
+    amountsVisible: Boolean,
+    onOpenCategory: (FinanceCategory) -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(colors.surface)) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
@@ -240,10 +280,21 @@ private fun CategoryBreakdownCard(
             } else {
                 categories.take(6).forEachIndexed { index, category ->
                     val accent = colors.categoryTints[category.category.ordinal.coerceIn(0, colors.categoryTints.lastIndex)]
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { onOpenCategory(category.category) }
+                            .padding(vertical = 5.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(category.category.label, color = colors.primaryText, fontWeight = FontWeight.SemiBold)
-                            Text(formatMoney(category.amountMinor), color = colors.secondaryText, style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                if (amountsVisible) formatMoney(category.amountMinor) else maskedMoney(),
+                                color = colors.secondaryText,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
                         }
                         LinearProgressIndicator(
                             progress = { category.share.coerceIn(0f, 1f) },
@@ -259,7 +310,7 @@ private fun CategoryBreakdownCard(
                     }
                 }
                 Text(
-                    "Total ${formatMoney(totalExpenses)}",
+                    if (amountsVisible) "Total ${formatMoney(totalExpenses)}" else "Total ${maskedMoney()}",
                     color = colors.secondaryText,
                     style = MaterialTheme.typography.labelMedium,
                     modifier = Modifier.fillMaxWidth(),
@@ -271,7 +322,7 @@ private fun CategoryBreakdownCard(
 }
 
 @Composable
-private fun HighlightsCard(insights: FinanceInsights, colors: FinanceThemeColors) {
+private fun HighlightsCard(insights: FinanceInsights, colors: FinanceThemeColors, amountsVisible: Boolean) {
     val change = insights.expenseChangePercent
     val trendText = when {
         change == null -> "More history needed"
@@ -290,14 +341,19 @@ private fun HighlightsCard(insights: FinanceInsights, colors: FinanceThemeColors
             HighlightRow(
                 Icons.Default.Category,
                 "Top category",
-                topCategory?.let { "${it.category.label} · ${formatMoney(it.amountMinor)}" } ?: "No spending yet",
+                topCategory?.let {
+                    "${it.category.label} · ${if (amountsVisible) formatMoney(it.amountMinor) else maskedMoney()}"
+                } ?: "No spending yet",
                 colors.primary,
                 colors,
             )
             HighlightRow(
                 Icons.Default.CalendarToday,
                 "Highest-spend day",
-                busiestDay?.let { "${it.date.format(DateTimeFormatter.ofPattern("dd MMM"))} · ${formatMoney(it.amountMinor)}" }
+                busiestDay?.let {
+                    "${it.date.format(DateTimeFormatter.ofPattern("dd MMM"))} · " +
+                        if (amountsVisible) formatMoney(it.amountMinor) else maskedMoney()
+                }
                     ?: "No spending yet",
                 colors.warning,
                 colors,
@@ -306,7 +362,8 @@ private fun HighlightsCard(insights: FinanceInsights, colors: FinanceThemeColors
                 Icons.Default.ReceiptLong,
                 "Largest expense",
                 largestExpense?.let {
-                    "${it.description.ifBlank { it.category.label }} · ${formatMoney(it.amountMinor)}"
+                    "${it.description.ifBlank { it.category.label }} · " +
+                        if (amountsVisible) formatMoney(it.amountMinor) else maskedMoney()
                 } ?: "No spending yet",
                 colors.secondaryText,
                 colors,

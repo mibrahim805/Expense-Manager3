@@ -47,10 +47,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -75,6 +71,7 @@ import com.expensemanager.android.core.model.calculateExpenses
 import com.expensemanager.android.core.model.calculateIncome
 import com.expensemanager.android.core.model.calculateTotalBalance
 import com.expensemanager.android.core.model.formatMoney
+import com.expensemanager.android.core.model.maskedMoney
 import com.expensemanager.android.core.designsystem.FinanceThemeColors
 import com.expensemanager.android.core.designsystem.financeColors
 import java.time.Instant
@@ -93,9 +90,10 @@ fun HomeScreen(
     onViewAll: () -> Unit,
     onOpenInsights: () -> Unit,
     onOpenSettings: () -> Unit,
+    amountsVisible: Boolean,
+    onToggleAmountsVisibility: () -> Unit,
 ) {
     val colors = financeColors()
-    var amountsVisible by rememberSaveable { mutableStateOf(true) }
     val today = LocalDate.now()
     val currentMonth = YearMonth.from(today)
     val monthTransactions = transactions.filter { YearMonth.from(it.localDate()) == currentMonth }
@@ -120,7 +118,7 @@ fun HomeScreen(
                 colors = colors,
                 growthPercent = growth,
                 amountsVisible = amountsVisible,
-                onToggleVisibility = { amountsVisible = !amountsVisible },
+                onToggleVisibility = onToggleAmountsVisibility,
             )
         }
         item {
@@ -572,7 +570,7 @@ private fun monthlyNet(transactions: List<FinanceTransaction>, month: YearMonth)
             }
         }
 
-private fun maskedAmount(): String = "Rs •••,•••"
+private fun maskedAmount(): String = maskedMoney()
 
 private fun balanceAmountText(balance: Long): AnnotatedString = buildAnnotatedString {
     val formattedAmount = formatMoney(balance)

@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -59,6 +61,7 @@ import com.expensemanager.android.core.model.FinanceTransaction
 import com.expensemanager.android.core.model.TransactionType
 import com.expensemanager.android.core.model.formatAmountForInput
 import com.expensemanager.android.core.model.formatMoney
+import com.expensemanager.android.core.model.maskedMoney
 import com.expensemanager.android.core.model.parseAmountToMinorUnits
 import java.time.Instant
 import java.time.YearMonth
@@ -70,6 +73,8 @@ import java.util.Locale
 fun BudgetsScreen(
     transactions: List<FinanceTransaction>,
     budgets: List<CategoryBudget>,
+    amountsVisible: Boolean,
+    onToggleAmountsVisibility: () -> Unit,
     onSetBudget: (FinanceCategory, Long) -> Unit,
     onDeleteBudget: (FinanceCategory) -> Unit,
 ) {
@@ -93,13 +98,29 @@ fun BudgetsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Budgets", color = colors.primaryText, style = MaterialTheme.typography.headlineSmall)
-                Text(
-                    "Plan and track ${month.month.getDisplayName(TextStyle.FULL, Locale.getDefault())}",
-                    color = colors.secondaryText,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Budgets", color = colors.primaryText, style = MaterialTheme.typography.headlineSmall)
+                    Text(
+                        "Plan and track ${month.month.getDisplayName(TextStyle.FULL, Locale.getDefault())}",
+                        color = colors.secondaryText,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                IconButton(
+                    onClick = onToggleAmountsVisibility,
+                    modifier = Modifier.semantics {
+                        contentDescription = if (amountsVisible) "Hide amounts" else "Show amounts"
+                    },
+                ) {
+                    Icon(
+                        if (amountsVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                        contentDescription = null,
+                    )
+                }
             }
         }
         item {
@@ -107,6 +128,7 @@ fun BudgetsScreen(
                 budgets = budgets,
                 spendingByCategory = spendingByCategory,
                 colors = colors,
+                amountsVisible = amountsVisible,
             )
         }
         item {
@@ -125,6 +147,7 @@ fun BudgetsScreen(
                 budget = budgetsByCategory[category],
                 spentMinor = spendingByCategory[category] ?: 0L,
                 colors = colors,
+                amountsVisible = amountsVisible,
                 onEdit = { editingCategory = category },
                 onDelete = { onDeleteBudget(category) },
             )
@@ -149,6 +172,7 @@ private fun BudgetSummaryCard(
     budgets: List<CategoryBudget>,
     spendingByCategory: Map<FinanceCategory, Long>,
     colors: FinanceThemeColors,
+    amountsVisible: Boolean,
 ) {
     val totalLimit = budgets.sumOf { it.limitMinor }
     val totalSpent = budgets.sumOf { budget -> spendingByCategory[budget.category] ?: 0L }
@@ -167,7 +191,7 @@ private fun BudgetSummaryCard(
         ) {
             Text("Monthly plan", color = colors.secondaryText, style = MaterialTheme.typography.bodyMedium)
             Text(
-                if (totalLimit > 0L) formatMoney(totalLimit) else "No limits set",
+                if (totalLimit <= 0L) "No limits set" else if (amountsVisible) formatMoney(totalLimit) else maskedMoney(),
                 color = colors.primaryText,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
@@ -179,8 +203,13 @@ private fun BudgetSummaryCard(
                 trackColor = colors.elevatedSurface,
             )
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                SummaryValue("Spent", formatMoney(totalSpent), colors)
-                SummaryValue("Remaining", formatMoney(remaining), colors, Alignment.End)
+                SummaryValue("Spent", if (amountsVisible) formatMoney(totalSpent) else maskedMoney(), colors)
+                SummaryValue(
+                    "Remaining",
+                    if (amountsVisible) formatMoney(remaining) else maskedMoney(),
+                    colors,
+                    Alignment.End,
+                )
             }
         }
     }
@@ -205,13 +234,16 @@ private fun BudgetCategoryCard(
     budget: CategoryBudget?,
     spentMinor: Long,
     colors: FinanceThemeColors,
+    amountsVisible: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val limit = budget?.limitMinor ?: 0L
     val progress = if (limit > 0L) (spentMinor.toFloat() / limit).coerceIn(0f, 1f) else 0f
     val progressColor = budgetProgressColor(spentMinor, limit, colors)
-    val status = when {
+    val status = if (!amountsVisible) {
+        "Amount hidden"
+    } else when {
         budget == null -> "No budget set"
         spentMinor > limit -> "${formatMoney(spentMinor - limit)} over"
         else -> "${formatMoney(limit - spentMinor)} left"
@@ -219,7 +251,11 @@ private fun BudgetCategoryCard(
 
     Card(
         modifier = Modifier.fillMaxWidth().semantics {
-            contentDescription = "${category.label} budget, spent ${formatMoney(spentMinor)}, $status"
+            contentDescription = if (amountsVisible) {
+                "${category.label} budget, spent ${formatMoney(spentMinor)}, $status"
+            } else {
+                "${category.label} budget, amount hidden"
+            }
         },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = colors.surface),
@@ -239,7 +275,13 @@ private fun BudgetCategoryCard(
                 Column(modifier = Modifier.weight(1f).padding(horizontal = 10.dp)) {
                     Text(category.label, color = colors.primaryText, fontWeight = FontWeight.SemiBold)
                     Text(
-                        if (budget == null) formatMoney(spentMinor) + " spent" else "${formatMoney(spentMinor)} of ${formatMoney(limit)}",
+                        if (!amountsVisible) {
+                            maskedMoney()
+                        } else if (budget == null) {
+                            formatMoney(spentMinor) + " spent"
+                        } else {
+                            "${formatMoney(spentMinor)} of ${formatMoney(limit)}"
+                        },
                         color = colors.secondaryText,
                         style = MaterialTheme.typography.bodyMedium,
                     )

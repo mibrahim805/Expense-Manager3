@@ -18,6 +18,8 @@ fun parseAmountToMinorUnits(raw: String): Long? = runCatching {
 fun formatAmountForInput(amountMinor: Long): String =
     BigDecimal.valueOf(amountMinor, 2).setScale(2).toPlainString()
 
+fun maskedMoney(): String = "Rs •••,•••"
+
 fun formatMoney(amountMinor: Long, currencyCode: String = "PKR", withSign: Boolean = false): String {
     val formatter = NumberFormat.getNumberInstance(Locale("en", "PK")).apply {
         minimumFractionDigits = 2

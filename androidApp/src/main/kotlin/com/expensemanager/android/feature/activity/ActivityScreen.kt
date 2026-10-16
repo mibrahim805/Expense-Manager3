@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -37,6 +38,8 @@ import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.DirectionsCar
@@ -83,6 +86,7 @@ import com.expensemanager.android.core.model.FinanceCategory
 import com.expensemanager.android.core.model.FinanceTransaction
 import com.expensemanager.android.core.model.TransactionType
 import com.expensemanager.android.core.model.formatMoney
+import com.expensemanager.android.core.model.maskedMoney
 import com.expensemanager.android.core.model.parseAmountToMinorUnits
 import java.time.Instant
 import java.time.LocalDate
@@ -121,6 +125,9 @@ private sealed interface ActivityItem {
 @Composable
 fun ActivityScreen(
     transactions: List<FinanceTransaction>,
+    amountsVisible: Boolean,
+    onToggleAmountsVisibility: () -> Unit,
+    onOpenCategory: (FinanceCategory) -> Unit,
     onEditTransaction: (FinanceTransaction) -> Unit,
     onDeleteTransaction: (FinanceTransaction) -> Unit,
 ) {
@@ -171,93 +178,156 @@ fun ActivityScreen(
     val monthExpenses = reportTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amountMinor }
     val monthIncome = reportTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amountMinor }
     val activityItems = remember(visibleTransactions) { buildActivityItems(visibleTransactions) }
-
-    Column(
-        modifier = Modifier.fillMaxSize().background(colors.appBackground).padding(horizontal = 16.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text("Activity", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-                Text("Track every rupee you spend", color = colors.secondaryText, style = MaterialTheme.typography.bodyMedium)
-            }
-            IconButton(
-                onClick = { showMonthPicker = true },
-                modifier = Modifier.semantics { contentDescription = "Choose reporting month" },
-            ) {
-                Icon(Icons.Default.CalendarMonth, contentDescription = null)
-            }
-        }
-
-        OutlinedTextField(
-            value = searchText,
-            onValueChange = { searchText = it },
-            modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
-            placeholder = { Text("Search transactions...") },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-            trailingIcon = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (searchText.isNotEmpty()) {
-                        IconButton(onClick = { searchText = "" }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear search")
-                        }
-                    }
-                    IconButton(
-                        onClick = { showFilters = true },
-                        modifier = Modifier.semantics { contentDescription = "Open transaction filters" },
-                    ) {
-                        Icon(Icons.Default.FilterList, contentDescription = null)
-                    }
-                }
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(14.dp),
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            ActivityChip("All", selectedType == null) { selectedTypeName = null }
-            ActivityChip("Expenses", selectedType == TransactionType.EXPENSE) { selectedTypeName = TransactionType.EXPENSE.name }
-            ActivityChip("Income", selectedType == TransactionType.INCOME) { selectedTypeName = TransactionType.INCOME.name }
-            ActivityChip("Transfers", selectedType == TransactionType.TRANSFER) { selectedTypeName = TransactionType.TRANSFER.name }
-            if (appliedFilters.activeCount > 0) {
-                Text(
-                    "${appliedFilters.activeCount} filter${if (appliedFilters.activeCount == 1) "" else "s"}",
-                    color = colors.primary,
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.align(Alignment.CenterVertically),
+    val categoryTotals = remember(transactions) {
+        transactions.asSequence()
+            .filter { it.type == TransactionType.EXPENSE }
+            .groupBy { it.category }
+            .map { (category, categoryTransactions) ->
+                CategoryActivityTotal(
+                    category = category,
+                    amountMinor = categoryTransactions.sumOf { it.amountMinor },
+                    transactionCount = categoryTransactions.size,
                 )
             }
-        }
+            .sortedByDescending { it.amountMinor }
+    }
 
-        SummaryCard(reportMonth, monthExpenses, monthIncome, colors)
-        Spacer(Modifier.height(16.dp))
-        Text("Transactions", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(8.dp))
-
-        if (transactions.isEmpty()) {
-            ActivityEmptyState("No transactions yet", "Add an expense, income, or transfer to see it here.", colors)
-        } else if (visibleTransactions.isEmpty()) {
-            ActivityEmptyState("No matching transactions", "Try clearing your search or resetting the filters.", colors)
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                contentPadding = PaddingValues(bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                items(activityItems, key = { it.key }) { item ->
-                    when (item) {
-                        is ActivityItem.DateHeader -> DateHeader(item.date, colors)
-                        is ActivityItem.TransactionRow -> ActivityTransactionRow(
-                            transaction = item.transaction,
-                            colors = colors,
-                            onClick = { selectedTransaction = item.transaction },
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(colors.appBackground).padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        item(key = "activity-overview") {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Activity", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Track every rupee you spend",
+                            color = colors.secondaryText,
+                            style = MaterialTheme.typography.bodyMedium,
                         )
                     }
+                    Row {
+                        IconButton(
+                            onClick = onToggleAmountsVisibility,
+                            modifier = Modifier.semantics {
+                                contentDescription = if (amountsVisible) "Hide amounts" else "Show amounts"
+                            },
+                        ) {
+                            Icon(
+                                if (amountsVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = null,
+                            )
+                        }
+                        IconButton(
+                            onClick = { showMonthPicker = true },
+                            modifier = Modifier.semantics { contentDescription = "Choose reporting month" },
+                        ) {
+                            Icon(Icons.Default.CalendarMonth, contentDescription = null)
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = searchText,
+                    onValueChange = { searchText = it },
+                    modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+                    placeholder = { Text("Search transactions...") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    trailingIcon = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (searchText.isNotEmpty()) {
+                                IconButton(onClick = { searchText = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear search")
+                                }
+                            }
+                            IconButton(
+                                onClick = { showFilters = true },
+                                modifier = Modifier.semantics { contentDescription = "Open transaction filters" },
+                            ) {
+                                Icon(Icons.Default.FilterList, contentDescription = null)
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    ActivityChip("All", selectedType == null) { selectedTypeName = null }
+                    ActivityChip("Expenses", selectedType == TransactionType.EXPENSE) {
+                        selectedTypeName = TransactionType.EXPENSE.name
+                    }
+                    ActivityChip("Income", selectedType == TransactionType.INCOME) {
+                        selectedTypeName = TransactionType.INCOME.name
+                    }
+                    ActivityChip("Transfers", selectedType == TransactionType.TRANSFER) {
+                        selectedTypeName = TransactionType.TRANSFER.name
+                    }
+                    if (appliedFilters.activeCount > 0) {
+                        Text(
+                            "${appliedFilters.activeCount} filter${if (appliedFilters.activeCount == 1) "" else "s"}",
+                            color = colors.primary,
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.align(Alignment.CenterVertically),
+                        )
+                    }
+                }
+
+                SummaryCard(reportMonth, monthExpenses, monthIncome, colors, amountsVisible)
+                if (categoryTotals.isNotEmpty()) {
+                    Spacer(Modifier.height(16.dp))
+                    Text("Expense categories", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Tap a category to see every transaction",
+                        color = colors.secondaryText,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        items(categoryTotals, key = { it.category.key }) { total ->
+                            CategoryActivityCard(
+                                total = total,
+                                colors = colors,
+                                amountsVisible = amountsVisible,
+                                onClick = { onOpenCategory(total.category) },
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                Text("Transactions", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+
+        when {
+            transactions.isEmpty() -> item(key = "empty-transactions") {
+                ActivityEmptyState("No transactions yet", "Add an expense, income, or transfer to see it here.", colors)
+            }
+
+            visibleTransactions.isEmpty() -> item(key = "empty-filtered-transactions") {
+                ActivityEmptyState("No matching transactions", "Try clearing your search or resetting the filters.", colors)
+            }
+
+            else -> items(activityItems, key = { it.key }) { item ->
+                when (item) {
+                    is ActivityItem.DateHeader -> DateHeader(item.date, colors)
+                    is ActivityItem.TransactionRow -> ActivityTransactionRow(
+                        transaction = item.transaction,
+                        colors = colors,
+                        amountsVisible = amountsVisible,
+                        onClick = { selectedTransaction = item.transaction },
+                    )
                 }
             }
         }
@@ -278,6 +348,7 @@ fun ActivityScreen(
     selectedTransaction?.let { transaction ->
         TransactionDetailsSheet(
             transaction = transaction,
+            amountsVisible = amountsVisible,
             onDismiss = { selectedTransaction = null },
             onEdit = {
                 selectedTransaction = null
@@ -291,13 +362,69 @@ fun ActivityScreen(
     }
 }
 
+private data class CategoryActivityTotal(
+    val category: FinanceCategory,
+    val amountMinor: Long,
+    val transactionCount: Int,
+)
+
+@Composable
+private fun CategoryActivityCard(
+    total: CategoryActivityTotal,
+    colors: FinanceThemeColors,
+    amountsVisible: Boolean,
+    onClick: () -> Unit,
+) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.width(160.dp).semantics {
+            contentDescription = "Open ${total.category.label} activity"
+        },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = colors.surface),
+        border = BorderStroke(1.dp, colors.border),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            Box(
+                modifier = Modifier.size(36.dp).clip(RoundedCornerShape(11.dp))
+                    .background(colors.categoryTints[total.category.ordinal]),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(categoryIcon(total.category), contentDescription = null, modifier = Modifier.size(19.dp))
+            }
+            Text(total.category.label, fontWeight = FontWeight.SemiBold)
+            Text(
+                if (amountsVisible) formatMoney(total.amountMinor) else maskedMoney(),
+                color = colors.primaryText,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
+            Text(
+                "${total.transactionCount} transaction${if (total.transactionCount == 1) "" else "s"}",
+                color = colors.secondaryText,
+                style = MaterialTheme.typography.labelMedium,
+            )
+        }
+    }
+}
+
 @Composable
 private fun ActivityChip(label: String, selected: Boolean, onClick: () -> Unit) {
     FilterChip(selected = selected, onClick = onClick, label = { Text(label) })
 }
 
 @Composable
-private fun SummaryCard(month: YearMonth, expenses: Long, income: Long, colors: FinanceThemeColors) {
+private fun SummaryCard(
+    month: YearMonth,
+    expenses: Long,
+    income: Long,
+    colors: FinanceThemeColors,
+    amountsVisible: Boolean,
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
@@ -311,18 +438,23 @@ private fun SummaryCard(month: YearMonth, expenses: Long, income: Long, colors: 
                 style = MaterialTheme.typography.bodyMedium,
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                SummaryValue("Expenses", expenses, colors.expense, Modifier.weight(1f))
-                SummaryValue("Income", income, colors.income, Modifier.weight(1f))
+                SummaryValue("Expenses", expenses, colors.expense, Modifier.weight(1f), amountsVisible)
+                SummaryValue("Income", income, colors.income, Modifier.weight(1f), amountsVisible)
             }
         }
     }
 }
 
 @Composable
-private fun SummaryValue(label: String, amount: Long, tint: Color, modifier: Modifier) {
+private fun SummaryValue(label: String, amount: Long, tint: Color, modifier: Modifier, amountsVisible: Boolean) {
     Column(modifier) {
         Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
-        Text(formatMoney(amount), color = tint, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text(
+            if (amountsVisible) formatMoney(amount) else maskedMoney(),
+            color = tint,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 
@@ -341,6 +473,7 @@ private fun DateHeader(date: LocalDate, colors: FinanceThemeColors) {
 private fun ActivityTransactionRow(
     transaction: FinanceTransaction,
     colors: FinanceThemeColors,
+    amountsVisible: Boolean,
     onClick: () -> Unit,
 ) {
     val amountColor = when (transaction.type) {
@@ -379,7 +512,12 @@ private fun ActivityTransactionRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Text(amount, color = amountColor, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+        Text(
+            if (amountsVisible) amount else maskedMoney(),
+            color = amountColor,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 
@@ -522,6 +660,7 @@ private fun DateFilterButton(label: String, date: LocalDate?, modifier: Modifier
 @Composable
 private fun TransactionDetailsSheet(
     transaction: FinanceTransaction,
+    amountsVisible: Boolean,
     onDismiss: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
@@ -535,7 +674,7 @@ private fun TransactionDetailsSheet(
         ) {
             Text("Transaction details", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
             Text(
-                detailAmount(transaction),
+                if (amountsVisible) detailAmount(transaction) else maskedMoney(),
                 color = detailAmountColor(transaction, colors),
                 style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.Bold,

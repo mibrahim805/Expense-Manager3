@@ -22,14 +22,20 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -38,12 +44,15 @@ import com.expensemanager.android.core.designsystem.FinanceThemeMode
 import com.expensemanager.android.core.auth.AuthUser
 import com.expensemanager.android.core.presentation.FinanceEvent
 import com.expensemanager.android.core.presentation.FinanceViewModel
+import com.expensemanager.android.core.model.FinanceCategory
 import com.expensemanager.android.feature.home.HomeScreen
 import com.expensemanager.android.feature.insights.InsightsScreen
 import com.expensemanager.android.feature.activity.ActivityScreen
+import com.expensemanager.android.feature.activity.CategoryActivityScreen
 import com.expensemanager.android.feature.budgets.BudgetsScreen
 import com.expensemanager.android.feature.transactions.AddTransactionScreen
 import com.expensemanager.android.feature.settings.SettingsScreen
+import com.expensemanager.android.feature.settings.WhatsNewScreen
 
 private data class TopLevelDestination(
     val route: String,
@@ -64,6 +73,7 @@ fun ExpenseManagerApp(
     viewModel: FinanceViewModel,
     themeMode: FinanceThemeMode,
     currentUser: AuthUser,
+    onAuthenticateBalance: (() -> Unit) -> Unit,
     onLogout: () -> Unit,
     onThemeChange: (FinanceThemeMode) -> Unit,
 ) {
@@ -71,11 +81,29 @@ fun ExpenseManagerApp(
     val transactions by viewModel.transactions.collectAsStateWithLifecycle()
     val budgets by viewModel.budgets.collectAsStateWithLifecycle()
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
+    var amountsVisible by remember(currentUser.id) { mutableStateOf(false) }
+    val lifecycleOwner = LocalLifecycleOwner.current
     val snackbarHostState = remember { SnackbarHostState() }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
-    val isFullscreen = currentRoute == "add" || currentRoute == "settings" || currentRoute?.startsWith("edit/") == true
+    val isFullscreen = currentRoute == "add" || currentRoute == "settings" || currentRoute == "whats-new" ||
+        currentRoute?.startsWith("edit/") == true || currentRoute?.startsWith("category/") == true
     val colors = MaterialTheme.colorScheme
+    val toggleAmountsVisibility = {
+        if (amountsVisible) {
+            amountsVisible = false
+        } else {
+            onAuthenticateBalance { amountsVisible = true }
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) amountsVisible = false
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -157,6 +185,8 @@ fun ExpenseManagerApp(
                     onViewAll = { navController.navigate("activity") },
                     onOpenInsights = { navController.navigate("insights") },
                     onOpenSettings = { navController.navigate("settings") },
+                    amountsVisible = amountsVisible,
+                    onToggleAmountsVisibility = toggleAmountsVisibility,
                 )
             }
             composable("add") {
@@ -186,12 +216,19 @@ fun ExpenseManagerApp(
                     currentUser = currentUser,
                     onBack = { navController.popBackStack() },
                     onLogout = onLogout,
+                    onOpenWhatsNew = { navController.navigate("whats-new") },
                     onThemeSelected = onThemeChange,
                 )
+            }
+            composable("whats-new") {
+                WhatsNewScreen(onBack = { navController.popBackStack() })
             }
             composable("activity") {
                 ActivityScreen(
                     transactions = transactions,
+                    amountsVisible = amountsVisible,
+                    onToggleAmountsVisibility = toggleAmountsVisibility,
+                    onOpenCategory = { category -> navController.navigate("category/${category.key}") },
                     onEditTransaction = { transaction -> navController.navigate("edit/${transaction.id}") },
                     onDeleteTransaction = { transaction -> viewModel.deleteTransaction(transaction.id) },
                 )
@@ -200,11 +237,32 @@ fun ExpenseManagerApp(
                 BudgetsScreen(
                     transactions = transactions,
                     budgets = budgets,
+                    amountsVisible = amountsVisible,
+                    onToggleAmountsVisibility = toggleAmountsVisibility,
                     onSetBudget = viewModel::setBudget,
                     onDeleteBudget = viewModel::deleteBudget,
                 )
             }
-            composable("insights") { InsightsScreen(transactions) }
+            composable("insights") {
+                InsightsScreen(
+                    transactions = transactions,
+                    amountsVisible = amountsVisible,
+                    onToggleAmountsVisibility = toggleAmountsVisibility,
+                    onOpenCategory = { category -> navController.navigate("category/${category.key}") },
+                )
+            }
+            composable("category/{categoryKey}") { entry ->
+                val category = FinanceCategory.fromKey(entry.arguments?.getString("categoryKey"))
+                CategoryActivityScreen(
+                    category = category,
+                    transactions = transactions,
+                    amountsVisible = amountsVisible,
+                    onToggleAmountsVisibility = toggleAmountsVisibility,
+                    onBack = { navController.popBackStack() },
+                    onEditTransaction = { transaction -> navController.navigate("edit/${transaction.id}") },
+                    onDeleteTransaction = { transaction -> viewModel.deleteTransaction(transaction.id) },
+                )
+            }
         }
     }
 }

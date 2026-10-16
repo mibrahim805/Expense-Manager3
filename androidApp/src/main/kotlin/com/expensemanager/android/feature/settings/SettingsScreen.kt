@@ -17,10 +17,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -42,6 +44,7 @@ import com.expensemanager.android.core.designsystem.FinanceThemeMode
 import com.expensemanager.android.core.designsystem.financeColors
 import com.expensemanager.android.core.designsystem.financeThemeColors
 import com.expensemanager.android.core.auth.AuthUser
+import com.expensemanager.android.core.update.CurrentRelease
 
 @Composable
 fun SettingsScreen(
@@ -49,6 +52,7 @@ fun SettingsScreen(
     currentUser: AuthUser,
     onBack: () -> Unit,
     onLogout: () -> Unit,
+    onOpenWhatsNew: () -> Unit,
     onThemeSelected: (FinanceThemeMode) -> Unit,
 ) {
     val colors = financeColors()
@@ -110,9 +114,36 @@ fun SettingsScreen(
             onClick = onLogout,
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
         ) {
-            Icon(Icons.Default.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+            Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.size(8.dp))
             Text("Log out")
+        }
+
+        Text("About", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 22.dp))
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 10.dp, bottom = 24.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .clickable(onClick = onOpenWhatsNew),
+            colors = CardDefaults.cardColors(containerColor = colors.surface),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(Icons.Default.Info, contentDescription = null, tint = colors.primary)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("What's new", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "RupeyaWise ${CurrentRelease.versionName}",
+                        color = colors.secondaryText,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = colors.secondaryText)
+            }
         }
     }
 }
